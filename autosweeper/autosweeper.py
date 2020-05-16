@@ -1,8 +1,8 @@
 from abc import abstractmethod
 import ctypes
 import json
-import numpy as np
 import os
+import random
 import sys
 import time
 
@@ -20,9 +20,9 @@ class Core(object):
         self.num_mines = num_mines
         self.num_boxes = num_boxes = map_width * map_height
         self.num_unknown_mines = num_mines
-        self.mine_indexes = np.zeros(num_mines, dtype="int64")
-        self.base_map = np.zeros(num_boxes, dtype="int8")
-        self.view_map = -np.ones(num_boxes, dtype="int8")
+        self.mine_indexes = [0] * num_mines
+        self.base_map = [0] * num_boxes
+        self.view_map = [-1] * num_boxes
 
         self.game_status = "preparing"
         self.num_steps = 0
@@ -100,8 +100,8 @@ class Core(object):
         for i in safe_region_indexes:
             map_index_choices.remove(i)
         try:
-            self.mine_indexes = np.random.choice(
-                map_index_choices, self.num_mines, replace=False
+            self.mine_indexes = random.sample(
+                map_index_choices, self.num_mines
             )
         except ValueError:
             self.raise_init_mine_map_error()
@@ -234,7 +234,7 @@ class Core(object):
     def check_if_win(self):
         if all([
             self.game_status == "processing",
-            np.sum(self.view_map == -1) == self.num_unknown_mines
+            self.view_map.count(-1) == self.num_unknown_mines
         ]):
             self.win()
 
@@ -255,8 +255,8 @@ class Logic(Core):
         num_boxes = self.num_boxes
         self.num_unknown_boxes = num_boxes
         self.num_unknown_mines = num_mines
-        self.unknown_map = np.zeros(num_boxes, dtype="int8")
-        self.flags_map = np.zeros(num_boxes, dtype="int8")
+        self.unknown_map = [0] * num_boxes
+        self.flags_map = [0] * num_boxes
 
         self.useable_steps = []
 
@@ -317,7 +317,7 @@ class Logic(Core):
         for i in range(self.num_boxes):
             if self.view_map[i] == -1:
                 blank_indexes.append(i)
-        random_index = np.random.choice(blank_indexes)
+        random_index = random.choice(blank_indexes)
         self.previous_index = random_index
         random_step = (random_index, "guess")
         return random_step
@@ -641,7 +641,7 @@ class Statistics(Interface):
         try:
             return a / b
         except ZeroDivisionError:
-            return np.nan
+            return 0.0
 
     @staticmethod
     def average(list_obj):
@@ -1176,7 +1176,7 @@ class Main(object):
         )
         if allow_display:
             sleep_per_step = Main.input_sleep_per_step(0.0)
-            sleep_per_game = Main.input_sleep_per_game(0.5)
+            sleep_per_game = Main.input_sleep_per_game(0.0)
         else:
             sleep_per_step = 0.0
             sleep_per_game = 0.0
@@ -1200,11 +1200,11 @@ class Main(object):
             "Please choose a display mode.",
             int, 1, choices_prompts=[
                 "Display the map updating after each step",
-                "Display the map and some basic information updating after"
+                "Display the map and some basic information updating after "
                 "each step"
             ]
         ) + 1
-        sleep_per_step = Main.input_sleep_per_step(0.1)
+        sleep_per_step = Main.input_sleep_per_step(0.0)
         ConsoleTools.hide_cursor()
         d = DisplayRecordedGame(
             self.console, filename,

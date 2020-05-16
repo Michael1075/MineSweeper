@@ -2,12 +2,12 @@
 
 *A collection of all MineSweeper projects*
 
-| file/folder name    | language                      | last update | status  |
-| :-----------------: | :---------------------------: | :---------: | :-----: |
-| `charsweeper.py`    | `python`                      | 2018/12/22  | frozen  |
-| `minesweeper_tk.py` | `python`                      | 2019/2/13   | frozen  |
-| `minesweeper_js`    | `javascript` + `html` + `css` | 2020/4/4    | frozen  |
-| `autosweeper`       | `python` + `C++`              | 2020/5/5    | ongoing |
+| file/folder name    | language                | last update | status  |
+| :-----------------: | :---------------------: | :---------: | :-----: |
+| `charsweeper.py`    | python                  | 2018/12/22  | frozen  |
+| `minesweeper_tk.py` | python                  | 2019/2/13   | frozen  |
+| `minesweeper_js`    | javascript & html & css | 2020/4/4    | frozen  |
+| `autosweeper`       | python & C++            | 2020/5/16   | ongoing |
 
 ## `charsweeper.py`
 
@@ -37,9 +37,9 @@ This is my first javascript project.
 
 *Let computer play MineSweeper automatically*
 
-Still updating. The algorithm will be updated. C++ version hasn't yet been completed. PyPy version may be added later.
+You may run `python autosweeper.py` and follow the instructions. Games played can be recorded as json files and saved in `game_savings` folder, and these files can be read and displayed in the future. The `numpy` package is no longer necessary, so using pypy to run `autosweeper.py` is allowed.
 
-By the way, this is my first project that contains C++.
+Still updating. The algorithm will be updated. C++ version hasn't yet been completed. By the way, this is my first project that contains C++.
 
 ## License
 
@@ -47,9 +47,11 @@ Copyright (c) 2020-present Michael W, released under the MIT license.
 
 ## Thanks
 
-Great thanks to those who have inspired me more or less during the production of this repository.
+Great thanks to those who have helped or inspired me more or less during the production of this repository.
 
+[@wlt233](https://github.com/wlt233)  
 [@ArbitSV](https://github.com/ArbitSV)  
 [@Jiangzemin1926](https://github.com/Jiangzemin1926/Minesweeper)  
 [@RainbowRoad1](https://github.com/RainbowRoad1/Cgame)  
 [@ztxz16](https://github.com/ztxz16/Mine)
+
