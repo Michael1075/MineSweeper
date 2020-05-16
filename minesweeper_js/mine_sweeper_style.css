@@ -1,0 +1,114 @@
+* {
+	cursor: default;
+}
+:root {
+	--box_cover_color: #485295;
+	--box_cover_hover_color: #5e84d5;
+	--box_bg_color: #c2cee4;
+	--box_bg_hover_color: #d1ddf3;
+}
+
+#main_grid {
+	display: grid;
+	grid-template-columns: auto 20px auto;
+	grid-template-rows: auto;
+	justify-content: start;
+	align-items: flex-start;
+}
+#game_grid {
+	display: inline-grid;
+	grid-template-columns: 1fr 1fr 1fr;
+	grid-template-rows: 40px 30px auto;
+	justify-content: start;
+	align-items: center;
+}
+#main_title {
+	grid-column: 1 / 3;
+	grid-row: 1 / 2;
+	justify-self: start;
+}
+#settings_button {
+	grid-column: 3 / 4;
+	grid-row: 1 / 2;
+	justify-self: end;
+}
+#rest_mines_counter {
+	grid-column: 1 / 2;
+	grid-row: 2 / 3;
+	justify-self: start;
+}
+#game_status {
+	grid-column: 2 / 3;
+	grid-row: 2 / 3;
+	justify-self: center;
+}
+#timer {
+	grid-column: 3 / 4;
+	grid-row: 2 / 3;
+	justify-self: end;
+}
+#game_table {
+	grid-column: 1 / 4;
+	grid-row: 3 / 4;
+	justify-self: center;
+	table-layout: fixed;
+	text-align: center;
+	font-family: sans-serif;
+}
+#game_table td {
+	box-sizing: border-box;
+	width: 22px;
+	height: 22px;
+}
+#settings_grid {
+	grid-column: 3 / 4;
+	display: none;
+	grid-template-columns: auto;
+	grid-template-rows: 40px repeat(4, 30px) auto 30px;
+	justify-content: start;
+	align-items: center;
+	transition: 0.4s;
+	opacity: 0;
+}
+#settings_title {
+	justify-self: center;
+}
+#confirm_button {
+	justify-self: center;
+}
+#custom_grid {
+	display: grid;
+	grid-template-columns: 80px 80px;
+	grid-template-rows: repeat(3, 30px);
+	justify-content: center;
+	justify_items: start;
+	align-items: center;
+}
+[type="text"] {
+	width: 60px;
+}
+
+.revealed_box {
+	background-color: var(--box_bg_color);
+}
+.revealed_box:hover {
+	background-color: var(--box_bg_hover_color);
+}
+.enclosed_box {
+	background-color: var(--box_cover_color);
+}
+.enclosed_box:hover {
+	background-color: var(--box_cover_hover_color);
+}
+.num1 {color: blue}
+.num2 {color: green}
+.num3 {color: red}
+.num4 {color: purple}
+.num5 {color: brown}
+.num6 {color: cyan}
+.num7 {color: black}
+.num8 {color: grey}
+.flag {color: yellow}
+.exploded_mine {color: orange}
+.rest_mine {color: yellow}
+.wrong_flag {color: grey}

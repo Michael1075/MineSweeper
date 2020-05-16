@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<title>Mine Sweeper</title>
+	<style type="text/css">
+		@import url("mine_sweeper_style.css");
+	</style>
+</head>
+<body>
+	<div id="main_grid">
+		<div id="game_grid">
+			<div id="main_title"><h3>MineSweeper</h3></div>
+			<div id="settings_button"><button onclick="stream.click_settings()">Settings</button></div>
+			<div id="rest_mines_counter"></div>
+			<div id="game_status"></div>
+			<div id="timer"></div>
+			<table id="game_table"></table>
+		</div>
+		<div id="settings_grid">
+			<div id="settings_title"><h4>Settings</h4></div>
+			<div><input type="radio" name="choice" value="easy" checked="checked"/> Easy (9x9, 10 mines)</div>
+			<div><input type="radio" name="choice" value="medium"/> Medium (16x16, 40 mines)</div>
+			<div><input type="radio" name="choice" value="difficult"/> Hard (30x16, 99 mines)</div>
+			<div><input type="radio" name="choice" value="customize"/> Customize</div>
+			<div id="custom_grid">
+				<div>Width: </div>
+				<div><input type="text" name="new_map_width" value="9"/></div>
+				<div>Height: </div>
+				<div><input type="text" name="new_map_height" value="9"/></div>
+				<div>Mines: </div>
+				<div><input type="text" name="new_num_mines" value="10"/></div>
+			</div>
+			<div id="confirm_button"><button onclick="stream.click_confirm()">Confirm</button></div>
+		</div>
+	</div>
+	<script src="mine_sweeper_js.js"></script>
+</body>
+</html>
