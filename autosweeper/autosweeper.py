@@ -544,15 +544,15 @@ class Interface(Logic):
 
     def get_json_dict(self):
         return {
-            "map_width": self.map_width,
-            "map_height": self.map_height,
-            "num_mines": self.num_mines,
+            "map_width": str(self.map_width),
+            "map_height": str(self.map_height),
+            "num_mines": str(self.num_mines),
             "game_result": self.game_status,
-            "progress": self.num_boxes - self.num_unknown_boxes,
-            "num_flags": self.num_mines - self.num_unknown_mines,
-            "num_steps": self.num_steps,
-            "num_guesses": self.num_random_steps,
-            "time_used": float("{0:.3f}".format(self.time_used)),
+            "progress": str(self.num_boxes - self.num_unknown_boxes),
+            "num_flags": str(self.num_mines - self.num_unknown_mines),
+            "num_steps": str(self.num_steps),
+            "num_guesses": str(self.num_random_steps),
+            "time_used": "{0:.3f}".format(self.time_used),
             "mine_indexes": " ".join(map(str, self.mine_indexes)),
             "step_indexes": " ".join(map(str, self.step_index_list)),
             "step_mode_nums": "".join(map(str, self.step_mode_num_list)),
@@ -560,11 +560,14 @@ class Interface(Logic):
 
     def record_game_data(self):
         json_dict = self.get_json_dict()
-        if not os.path.exists(Interface.FOLDER_NAME):
-            os.makedirs(Interface.FOLDER_NAME)
-        num = len(os.listdir(Interface.FOLDER_NAME))
-        filename = self.generate_json_filename(num)
-        file_path = os.path.join(Interface.FOLDER_NAME, filename)
+        folder_name = "-".join(map(str, (
+            self.map_width, self.map_height, self.num_mines
+        )))
+        folder_path = os.path.join(Interface.FOLDER_NAME, folder_name)
+        if not os.path.exists(folder_path):
+            os.makedirs(folder_path)
+        filename = str(len(os.listdir(folder_path))) + ".json"
+        file_path = os.path.join(folder_path, filename)
         with open(file_path, "w") as output_file:
             json.dump(json_dict, output_file, indent=0)
 
@@ -742,6 +745,8 @@ class Statistics(Interface):
             self.print_statistics_data(serial_num)
 
     def update_ranking_list(self, game):
+        if not self.ranking_list:
+            return
         if game.num_unknown_boxes == 0:
             game.record_game_data()
         else:
@@ -775,14 +780,14 @@ class Statistics(Interface):
 
 
 class DisplayRecordedGame(AutoGame):
-    def __init__(self, console, filename, *, allow_display, sleep_per_step):
-        file_path = os.path.join(Interface.FOLDER_NAME, filename)
+    def __init__(self, console, file_path, *, allow_display, sleep_per_step):
         with open(file_path, "r") as input_file:
             json_dict = json.load(input_file)
         AutoGame.__init__(
-            self, console, json_dict["map_width"], json_dict["map_height"],
-            json_dict["num_mines"], allow_display=allow_display,
-            record_mode="false", sleep_per_step_if_displayed=sleep_per_step
+            self, console, int(json_dict["map_width"]),
+            int(json_dict["map_height"]), int(json_dict["num_mines"]),
+            allow_display=allow_display, record_mode="false",
+            sleep_per_step_if_displayed=sleep_per_step
         )
         self.mine_indexes = list(map(
             int, json_dict["mine_indexes"].split()
@@ -1191,11 +1196,26 @@ class Main(object):
         s.run()
 
     def handle_2(self):
-        filename = InputTools.f_input(
-            "Please input the filename of the game to be displayed.",
-            str, "30-16-99-0.json",
-            assert_func=lambda x: x in os.listdir(Interface.FOLDER_NAME)
+        def get_file_path(file_id):
+            split_index = file_id.rfind("-")
+            if split_index == -1:
+                return ""
+            folder_name = file_id[:split_index]
+            filename = file_id[split_index + 1:] + ".json"
+            file_path = os.path.join(
+                Interface.FOLDER_NAME, folder_name, filename
+            )
+            try:
+                open(file_path)
+            except FileNotFoundError:
+                return ""
+            return file_path
+
+        file_id = InputTools.f_input(
+            "Please input the file-id of the game to be displayed.",
+            str, "30-16-99-0", assert_func=get_file_path
         )
+        file_path = get_file_path(file_id)
         allow_display = InputTools.f_input(
             "Please choose a display mode.",
             int, 1, choices_prompts=[
@@ -1207,7 +1227,7 @@ class Main(object):
         sleep_per_step = Main.input_sleep_per_step(0.0)
         ConsoleTools.hide_cursor()
         d = DisplayRecordedGame(
-            self.console, filename,
+            self.console, file_path,
             allow_display=allow_display, sleep_per_step=sleep_per_step
         )
         d.run()
