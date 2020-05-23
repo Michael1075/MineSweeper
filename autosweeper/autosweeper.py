@@ -13,13 +13,23 @@ __website__ = "https://github.com/Michael1075/autosweeper"
 COPYRIGHT_STR = os.path.basename(__file__) + " - " + __website__
 
 
+def f_div(a, b):
+    try:
+        return a / b
+    except ZeroDivisionError:
+        return 0.0
+
+
+def average(list_obj):
+    return f_div(sum(list_obj), len(list_obj))
+
+
 class Core(object):
     def __init__(self, map_width, map_height, num_mines):
         self.map_width = map_width
         self.map_height = map_height
         self.num_mines = num_mines
         self.num_boxes = num_boxes = map_width * map_height
-        self.num_unknown_mines = num_mines
         self.mine_indexes = [0] * num_mines
         self.base_map = [0] * num_boxes
         self.view_map = [-1] * num_boxes
@@ -43,10 +53,10 @@ class Core(object):
         x, y = coord
         return 0 <= x < self.map_width and 0 <= y < self.map_height
 
-    def spiral_trace_generator(self, center_index, *, layer=None):
+    def spiral_trace_generator(self, center_index, *, layer=-1):
         x0, y0 = self.index_to_coord(center_index)
         x = y = 0
-        if layer is None:
+        if layer == -1:
             layer = max(
                 x0, self.map_width - x0 - 1,
                 y0, self.map_height - y0 - 1
@@ -124,7 +134,7 @@ class Core(object):
 
     @abstractmethod
     def modify_surrounding_flags_map(self, index):
-        self.num_unknown_mines -= 1
+        pass
 
     def expand_zero(self, index):
         pre_updated_zero_region = set()
@@ -195,11 +205,10 @@ class Core(object):
             self.flag_blank_box(index)
         self.check_if_win()
 
-    def exploit_first_index(self, first_index):
+    def start(self, first_index):
+        self.init_mine_indexes(first_index)
+        self.init_base_map()
         self.game_status = "processing"
-        self.num_steps += 1
-        self.explore_blank_box(first_index)
-        self.check_if_win()
 
     def explode(self, indexes):
         to_be_updates_indexes = []
@@ -258,7 +267,7 @@ class Logic(Core):
         self.unknown_map = [0] * num_boxes
         self.flags_map = [0] * num_boxes
 
-        self.useable_steps = []
+        self.cached_steps = []
 
         self.init_unknown_map()
 
@@ -272,7 +281,7 @@ class Logic(Core):
             self.unknown_map[i] -= 1
 
     def modify_surrounding_flags_map(self, index):
-        Core.modify_surrounding_flags_map(self, index)
+        self.num_unknown_mines -= 1
         for i in self.get_surrounding_indexes(index):
             self.flags_map[i] += 1
 
@@ -292,21 +301,21 @@ class Logic(Core):
                 + self.flags_map[index0] - self.flags_map[index1]:
             for i in suburb_indexes0:
                 if self.view_map[i] == -1:
-                    self.useable_steps.append((i, "flag"))
+                    self.cached_steps.append((i, "flag"))
             for i in suburb_indexes1:
                 if self.view_map[i] == -1:
-                    self.useable_steps.append((i, "explore"))
+                    self.cached_steps.append((i, "explore"))
 
     def infer_single_box(self, index):
         if not self.is_valuable(index):
             return
         if self.flags_map[index] == self.base_map[index]:
-            self.useable_steps.append((index, "explore_surrounding"))
+            self.cached_steps.append((index, "explore_surrounding"))
         if self.unknown_map[index] + self.flags_map[index] \
                 == self.base_map[index]:
             for i in self.get_surrounding_indexes(index):
                 if self.view_map[i] == -1:
-                    self.useable_steps.append((i, "flag"))
+                    self.cached_steps.append((i, "flag"))
         exp_indexes = self.get_surrounding_indexes(index, layer=2)
         for exp_index in exp_indexes:
             if self.is_valuable(exp_index):
@@ -323,21 +332,21 @@ class Logic(Core):
         return random_step
 
     def make_choice(self):
-        self.useable_steps = list(filter(
-            lambda useable_step: self.view_map[useable_step[0]] == -1,
-            self.useable_steps
+        self.cached_steps = list(filter(
+            lambda cached_step: self.view_map[cached_step[0]] == -1,
+            self.cached_steps
         ))
-        if self.useable_steps:
-            return self.useable_steps.pop()
+        if self.cached_steps:
+            return self.cached_steps.pop()
         inferred_box_indexes = self.spiral_trace_generator(
             self.previous_index
         )
         for _ in range(self.num_boxes):
             index = next(inferred_box_indexes)
             self.infer_single_box(index)
-            if self.useable_steps:
+            if self.cached_steps:
                 self.previous_index = index
-                return self.useable_steps.pop()
+                return self.cached_steps.pop()
         random_step = self.make_random_choice()
         return random_step
 
@@ -350,9 +359,9 @@ class Logic(Core):
 
     def on_playing(self):
         first_index = self.make_first_choice_index()
-        self.init_mine_indexes(first_index)
-        self.init_base_map()
-        self.exploit_first_index(first_index)
+        self.start(first_index)
+        first_step = (first_index, "explore")
+        self.exploit_step(first_step)
         while self.game_status == "processing":
             next_step = self.make_choice()
             self.exploit_step(next_step)
@@ -389,11 +398,11 @@ class Interface(Logic):
     LINE_SEPARATOR_UNIT = "—"
 
     def __init__(self, console, map_width, map_height, num_mines, *,
-            allow_display, record_mode, sleep_per_step_if_displayed):
+            display_mode, record_mode, sleep_per_step_if_displayed):
         Logic.__init__(self, map_width, map_height, num_mines)
         self.console = console
         self.line_separator = map_width * Interface.LINE_SEPARATOR_UNIT
-        self.allow_display = allow_display
+        self.display_mode = display_mode
         self.record_mode = record_mode
         self.sleep_per_step_if_displayed = sleep_per_step_if_displayed
 
@@ -420,10 +429,13 @@ class Interface(Logic):
         base_info_width = (self.cell_width + len(Interface.CELL_SEPARATOR)) \
             * len(longest_possible_base_info) - len(Interface.CELL_SEPARATOR)
         cols = max(len(COPYRIGHT_STR), base_info_width)
-        lines = 6
-        if self.allow_display:
+        if self.display_mode == 0:
+            lines = 3
+        elif self.display_mode == 1:
+            lines = 6
+        else:
             cols = max(cols, self.map_width * 2)
-            lines += self.map_height + 2
+            lines = self.map_height + 8
         self.console_cols = cols
         self.console_lines = lines
 
@@ -434,27 +446,30 @@ class Interface(Logic):
             self.step_index_list.append(index)
             step_mode_num = Interface.STEP_MODE_LIST.index(step_mode)
             self.step_mode_num_list.append(step_mode_num)
-        if self.allow_display:
-            time.sleep(self.sleep_per_step_if_displayed)
-            if self.allow_display == 2:
+        if self.display_mode in (2, 3):
+            if self.display_mode == 3:
                 self.print_game_base_info_values()
+            if self.game_status == "processing":
+                time.sleep(self.sleep_per_step_if_displayed)
 
-    def exploit_first_index(self, first_index):
-        Logic.exploit_first_index(self, first_index)
-        if self.record_mode != "false":
-            self.step_index_list.append(first_index)
-            self.step_mode_num_list.append(0)
-        if self.allow_display == 2:
+    def start(self, first_index):
+        Logic.start(self, first_index)
+        if self.display_mode == 3:
             self.print_game_status()
 
     def explode(self, indexes):
         Logic.explode(self, indexes)
-        self.print_game_status()
+        if self.display_mode != 0:
+            self.print_game_status()
+            if self.display_mode != 3:
+                self.print_game_base_info_values()
 
     def win(self):
         Logic.win(self)
-        self.print_game_status()
-        self.print_game_base_info_values()
+        if self.display_mode != 0:
+            self.print_game_status()
+            if self.display_mode != 3:
+                self.print_game_base_info_values()
 
     def calculate_console_coord(self, index):
         x, y = self.index_to_coord(index)
@@ -463,7 +478,7 @@ class Interface(Logic):
         return x, y
 
     def update_map(self, index):
-        if not self.allow_display:
+        if self.display_mode in (0, 1):
             return
         box_char_tuple = Interface.BOX_CHAR_LIST[self.view_map[index]]
         console_coord = self.calculate_console_coord(index)
@@ -512,7 +527,7 @@ class Interface(Logic):
         )
 
     def init_display_view_map(self):
-        if self.allow_display == 2:
+        if self.display_mode == 3:
             self.print_game_base_info_values()
         self.console.print_in_line(4, self.line_separator)
         blank_tuple = Interface.BOX_CHAR_LIST[-1]
@@ -525,11 +540,9 @@ class Interface(Logic):
         self.console.print_in_line(self.map_height + 5, self.line_separator)
 
     def run(self):
-        if self.allow_display:
+        if self.display_mode in (2, 3):
             self.init_display_view_map()
         Logic.run(self)
-        if self.allow_display != 2:
-            self.print_game_base_info_values()
         if any([
             self.record_mode == "true",
             self.record_mode == self.game_status == "won",
@@ -584,19 +597,20 @@ class AutoGame(Interface):
         ConsoleTools.clear_console()
         self.console.set_console_size(self.console_cols, self.console_lines)
         self.console.print_copyright_str()
-        self.print_game_base_info_keys()
+        if self.display_mode != 0:
+            self.print_game_base_info_keys()
         Interface.run(self)
 
 
-class Statistics(Interface):
+class GameStatistics(Interface):
     KEY_VAL_SEPARATOR = " "
 
-    def __init__(self, console, map_width, map_height, num_mines, num_games
-            , *, allow_display, record_mode, update_freq,
+    def __init__(self, console, map_width, map_height, num_mines, num_games, *,
+            display_mode, record_mode, update_freq,
             sleep_per_step_if_displayed, sleep_per_game_if_displayed):
         Interface.__init__(
             self, console, map_width, map_height, num_mines,
-            allow_display=allow_display, record_mode=record_mode,
+            display_mode=display_mode, record_mode=record_mode,
             sleep_per_step_if_displayed=sleep_per_step_if_displayed
         )
         self.num_games = num_games
@@ -612,11 +626,11 @@ class Statistics(Interface):
         self.num_random_steps_list = []
         self.time_list = []
         self.won_games_time_list = []
+        self.ranking_list = []
         if record_mode.startswith("some"):
-            num_recorded_games = int(record_mode.split("-")[1])
-            self.ranking_list = [(self.num_boxes, None)] * num_recorded_games
+            self.num_recorded_games = int(record_mode.split("-")[1])
         else:
-            self.ranking_list = None
+            self.num_recorded_games = 0
 
         self.key_info_width = 0
         self.value_info_width = 0
@@ -635,20 +649,9 @@ class Statistics(Interface):
         self.key_info_width = max(map(len, longest_possible_data.keys()))
         self.value_info_width = max(map(len, longest_possible_data.values()))
         statistic_info_width = self.key_info_width \
-            + len(Statistics.KEY_VAL_SEPARATOR) + self.value_info_width
+            + len(GameStatistics.KEY_VAL_SEPARATOR) + self.value_info_width
         self.console_cols = max(self.console_cols, statistic_info_width)
         self.console_lines += statistic_info_height + 1
-
-    @staticmethod
-    def fdiv(a, b):
-        try:
-            return a / b
-        except ZeroDivisionError:
-            return 0.0
-
-    @staticmethod
-    def average(list_obj):
-        return Statistics.fdiv(sum(list_obj), len(list_obj))
 
     def get_statistics_data_template(self, serial_num, num_games_won,
             num_games_won_without_guesses, avg_progress, avg_num_flags,
@@ -657,49 +660,47 @@ class Statistics(Interface):
         return {
             "Main progress": "{0} / {1} ({2:.1%})".format(
                 serial_num, self.num_games,
-                Statistics.fdiv(serial_num, self.num_games)
+                f_div(serial_num, self.num_games)
             ),
             "Specification": "{0} * {1} / {2} ({3:.1%})".format(
                 self.map_width, self.map_height, self.num_mines,
-                Statistics.fdiv(self.num_mines, self.num_boxes)
+                f_div(self.num_mines, self.num_boxes)
             ),
             "Games won": "{0} / {1} ({2:.1%})".format(
                 num_games_won, serial_num,
-                Statistics.fdiv(num_games_won, serial_num)
+                f_div(num_games_won, serial_num)
             ),
             "Without guesses": "{0} / {1} ({2:.1%})".format(
                 num_games_won_without_guesses, serial_num,
-                Statistics.fdiv(num_games_won_without_guesses, serial_num)
+                f_div(num_games_won_without_guesses, serial_num)
             ),
             "Avg. progress": "{0:.3f} / {1} ({2:.1%})".format(
                 avg_progress, self.num_boxes,
-                Statistics.fdiv(avg_progress, self.num_boxes)
+                f_div(avg_progress, self.num_boxes)
             ),
             "Avg. flags": "{0:.3f} / {1} ({2:.1%})".format(
                 avg_num_flags, self.num_mines,
-                Statistics.fdiv(avg_num_flags, self.num_mines)
+                f_div(avg_num_flags, self.num_mines)
             ),
             "Avg. steps": "{0:.3f} step(s)".format(avg_num_steps),
             "Avg. steps (won)": "{0:.3f} step(s)".format(
                 avg_won_games_num_steps
             ),
             "Avg. guesses": "{0:.3f} step(s)".format(avg_num_random_steps),
-            "Avg. time": "{0:.3f} second(s)".format(avg_time),
-            "Avg. time (won)": "{0:.3f} second(s)".format(
-                avg_won_games_time
+            "Avg. time": "{0:.3f} ms".format(avg_time * 1e3),
+            "Avg. time (won)": "{0:.3f} ms".format(
+                avg_won_games_time * 1e3
             ),
         }
 
     def get_statistics_data(self, serial_num):
-        avg_progress = Statistics.average(self.progress_list)
-        avg_num_flags = Statistics.average(self.num_flags_list)
-        avg_num_steps = Statistics.average(self.num_steps_list)
-        avg_won_games_num_steps = Statistics.average(
-            self.num_won_games_steps_list
-        )
-        avg_num_random_steps = Statistics.average(self.num_random_steps_list)
-        avg_time = Statistics.average(self.time_list)
-        avg_won_games_time = Statistics.average(self.won_games_time_list)
+        avg_progress = average(self.progress_list)
+        avg_num_flags = average(self.num_flags_list)
+        avg_num_steps = average(self.num_steps_list)
+        avg_won_games_num_steps = average(self.num_won_games_steps_list)
+        avg_num_random_steps = average(self.num_random_steps_list)
+        avg_time = average(self.time_list)
+        avg_won_games_time = average(self.won_games_time_list)
         return self.get_statistics_data_template(
             serial_num, self.num_games_won,
             self.num_games_won_without_guesses, avg_progress, avg_num_flags,
@@ -709,11 +710,14 @@ class Statistics(Interface):
 
     def print_statistics_data(self, serial_num):
         statistic_info = self.get_statistics_data(serial_num)
-        begin_line_index = 5
-        if self.allow_display:
-            begin_line_index += self.map_height + 2
+        if self.display_mode == 0:
+            begin_line_index = 2
+        elif self.display_mode == 1:
+            begin_line_index = 5
+        else:
+            begin_line_index = self.map_height + 7
         string_template = "{0:<" + str(self.key_info_width) + "}"
-        string_template += Statistics.KEY_VAL_SEPARATOR
+        string_template += GameStatistics.KEY_VAL_SEPARATOR
         string_template += "{1:>" + str(self.value_info_width) + "}"
         for line_index, item in enumerate(statistic_info.items()):
             key, value = item
@@ -745,27 +749,28 @@ class Statistics(Interface):
             self.print_statistics_data(serial_num)
 
     def update_ranking_list(self, game):
-        if not self.ranking_list:
+        if not self.num_recorded_games:
             return
         if game.num_unknown_boxes == 0:
+            self.num_recorded_games -= 1
             game.record_game_data()
-        else:
+        elif len(self.ranking_list) < self.num_recorded_games:
             self.ranking_list.append((game.num_unknown_boxes, game))
             self.ranking_list.sort(key=lambda pair: pair[0])
-        self.ranking_list.pop()
 
     def run(self):
         ConsoleTools.clear_console()
         self.console.set_console_size(self.console_cols, self.console_lines)
         self.console.print_copyright_str()
-        self.print_game_base_info_keys()
+        if self.display_mode != 0:
+            self.print_game_base_info_keys()
         self.print_statistics_data(0)
         for serial_num in range(1, self.num_games + 1):
             if serial_num > 1:
                 time.sleep(self.sleep_per_game_if_displayed)
             game = Interface(
                 self.console, self.map_width, self.map_height, self.num_mines,
-                allow_display=self.allow_display,
+                display_mode=self.display_mode,
                 record_mode=self.record_mode,
                 sleep_per_step_if_displayed=self.sleep_per_step_if_displayed
             )
@@ -780,13 +785,13 @@ class Statistics(Interface):
 
 
 class DisplayRecordedGame(AutoGame):
-    def __init__(self, console, file_path, *, allow_display, sleep_per_step):
+    def __init__(self, console, file_path, *, display_mode, sleep_per_step):
         with open(file_path, "r") as input_file:
             json_dict = json.load(input_file)
         AutoGame.__init__(
             self, console, int(json_dict["map_width"]),
             int(json_dict["map_height"]), int(json_dict["num_mines"]),
-            allow_display=allow_display, record_mode="false",
+            display_mode=display_mode, record_mode="false",
             sleep_per_step_if_displayed=sleep_per_step
         )
         self.mine_indexes = list(map(
@@ -884,9 +889,9 @@ class ConsoleTextColor(ConsoleCursor):
     }
 
     def __init__(self, fg_color_str, bg_color_str):
-        if fg_color_str is None:
+        if not fg_color_str:
             fg_color_str = "white"
-        if bg_color_str is None:
+        if not bg_color_str:
             bg_color_str = "black"
         color = self.PALETTE["foreground colors"][fg_color_str] \
             | self.PALETTE["background colors"][bg_color_str]
@@ -930,7 +935,7 @@ class ConsoleTools(object):
         ConsoleTools.__show_console_window(3)
 
     @staticmethod
-    def __set_cmd_text_color(*, color, bg_color=None):
+    def __set_cmd_text_color(*, color, bg_color=""):
         ConsoleTextColor(color, bg_color)
 
     @staticmethod
@@ -938,7 +943,7 @@ class ConsoleTools(object):
         ConsoleTools.__set_cmd_text_color(color="white")
 
     @staticmethod
-    def print_with_color(value, *, color, bg_color=None):
+    def print_with_color(value, *, color, bg_color=""):
         ConsoleTools.__set_cmd_text_color(color=color, bg_color=bg_color)
         print(value)
         ConsoleTools.__reset_color()
@@ -962,13 +967,13 @@ class ConsoleTools(object):
         assert x < self.__cols and y < self.__lines
         ConsoleCursorPosition(x, y)
 
-    def print_at(self, coord, value, *, color=None, bg_color=None):
+    def print_at(self, coord, value, *, color="", bg_color=""):
         assert "\n" not in value
         assert len(value) + coord[0] <= self.__cols
         self.__move_cursor_to(coord)
         ConsoleTools.print_with_color(value, color=color, bg_color=bg_color)
 
-    def print_in_line(self, line_index, value, *, color=None, bg_color=None):
+    def print_in_line(self, line_index, value, *, color="", bg_color=""):
         self.print_at((0, line_index), value, color=color, bg_color=bg_color)
 
     def print_list_as_table_row(self, line_index, list_obj,
@@ -986,8 +991,7 @@ class ConsoleTools(object):
     def print_copyright_str(self):
         self.print_in_line(0, COPYRIGHT_STR)
 
-    def print_at_end(self, reversed_line_index, val, *,
-            color=None, bg_color=None):
+    def print_at_end(self, reversed_line_index, val, *, color="", bg_color=""):
         line_index = self.__lines - reversed_line_index - 1
         self.print_in_line(
             line_index, val, color=color, bg_color=bg_color
@@ -1006,7 +1010,7 @@ class InputTools(object):
     @staticmethod
     def input_with_default_val(prompt, default_val):
         val = input(prompt)
-        if not val and default_val is not None:
+        if not val:
             val = default_val
         return val
 
@@ -1028,42 +1032,57 @@ class InputTools(object):
         return True
 
     @staticmethod
-    def input_loop(prompt, data_cls, default_val, assert_func):
+    def input_loop(base_prompt, prompt, data_cls, default_val, assert_func):
+        print(base_prompt)
         val = InputTools.input_with_default_val(prompt, default_val)
         while not InputTools.check_input(val, data_cls, assert_func):
             val = InputTools.input_again(default_val)
         return data_cls(val)
 
     @staticmethod
-    def f_input(base_prompt, data_cls, default_val, *,
-            assert_func=None, choices=None, choices_prompts=None):
-        suffix = "[{0}]".format(default_val)
-        if choices_prompts is not None:
-            choices = list(range(len(choices_prompts)))
-            longest_index_num = len(choices_prompts) - 1
-            index_num_template = " - {0:" \
-                + str(len(str(longest_index_num))) + "}. "
-            longest_index_num_str = index_num_template.format(
-                longest_index_num
-            )
-            for choice_num, choices_prompt in enumerate(choices_prompts):
-                prompt_tail = "." if choice_num == longest_index_num else ";"
-                choices_prompts[choice_num] = index_num_template.format(
-                    choice_num
-                ) + choices_prompt.replace(
-                    "\n", "\n" + len(longest_index_num_str) * " "
-                ) + prompt_tail
-            base_prompt = "\n".join([base_prompt] + choices_prompts)
-        if choices is not None:
-            assert_func = lambda x: x in choices
-            choices_copy = choices.copy()
-            choices_copy[choices.index(default_val)] = suffix
-            suffix = "/".join(map(str, choices_copy))
-            suffix = "({0})".format(suffix)
-        suffix = suffix + ": "
-        print(base_prompt)
+    def free_input(base_prompt, data_cls, default_val):
+        assert_func = lambda x: True
+        return InputTools.assertion_input(
+            base_prompt, data_cls, default_val, assert_func
+        )
+
+    @staticmethod
+    def assertion_input(base_prompt, data_cls, default_val, assert_func):
+        suffix = "[{0}]: ".format(default_val)
         return InputTools.input_loop(
-            suffix, data_cls, default_val, assert_func
+            base_prompt, suffix, data_cls, default_val, assert_func
+        )
+
+    @staticmethod
+    def choices_input(base_prompt, data_cls, default_val, choices):
+        assert_func = lambda x: x in choices
+        choices_copy = choices.copy()
+        choices_copy[choices.index(default_val)] = "[{0}]".format(default_val)
+        suffix = "/".join(map(str, choices_copy))
+        suffix = "({0}): ".format(suffix)
+        return InputTools.input_loop(
+            base_prompt, suffix, data_cls, default_val, assert_func
+        )
+
+    @staticmethod
+    def prompts_input(base_prompt, data_cls, default_val, choices_prompts):
+        choices = list(range(len(choices_prompts)))
+        longest_index_num = len(choices_prompts) - 1
+        index_num_template = " - {0:" \
+            + str(len(str(longest_index_num))) + "}. "
+        longest_index_num_str = index_num_template.format(
+            longest_index_num
+        )
+        for choice_num, choices_prompt in enumerate(choices_prompts):
+            prompt_tail = "." if choice_num == longest_index_num else ";"
+            choices_prompts[choice_num] = index_num_template.format(
+                choice_num
+            ) + choices_prompt.replace(
+                "\n", "\n" + len(longest_index_num_str) * " "
+            ) + prompt_tail
+        base_prompt = "\n".join([base_prompt] + choices_prompts)
+        return InputTools.choices_input(
+            base_prompt, data_cls, default_val, choices
         )
 
 
@@ -1079,87 +1098,107 @@ class Main(object):
 
     @staticmethod
     def input_specification():
-        map_width = InputTools.f_input(
+        map_width = InputTools.assertion_input(
             "Please input the width of the map.",
-            int, 30, assert_func=lambda x: x > 0
+            int, 30, lambda x: x > 0
         )
-        map_height = InputTools.f_input(
+        map_height = InputTools.assertion_input(
             "Please input the height of the map.",
-            int, 16, assert_func=lambda x: x > 0
+            int, 16, lambda x: x > 0
         )
-        num_mines = InputTools.f_input(
+        num_mines = InputTools.assertion_input(
             "Please input the number of mines.",
-            int, 99, assert_func=lambda x: x > 0
+            int, 99, lambda x: x > 0
         )
         return map_width, map_height, num_mines
 
     @staticmethod
-    def ask_allow_display():
-        return InputTools.f_input(
-            "Please choose a display mode.",
-            int, 2, choices_prompts=[
-                "Only display some basic information at the end of each "
-                "game",
-                "Display the map updating after each step",
-                "Display the map and some basic information updating after"
-                "each step"
-            ]
-        )
-
-    @staticmethod
     def input_sleep_per_step(default_time):
-        sleep_per_step = InputTools.f_input(
+        sleep_per_step = InputTools.assertion_input(
             "How long shall the computer sleep after each step?",
-            float, default_time, assert_func=lambda x: x >= 0.0
+            float, default_time, lambda x: x >= 0.0
         )
         return sleep_per_step
 
     @staticmethod
     def input_sleep_per_game(default_time):
-        sleep_per_step = InputTools.f_input(
+        sleep_per_step = InputTools.assertion_input(
             "How long shall the computer sleep after each game?",
-            float, default_time, assert_func=lambda x: x >= 0.0
+            float, default_time, lambda x: x >= 0.0
         )
         return sleep_per_step
 
+    @staticmethod
+    def get_file_path(file_id):
+        split_index = file_id.rfind("-")
+        if split_index == -1:
+            return ""
+        folder_name = file_id[:split_index]
+        filename = file_id[split_index + 1:] + ".json"
+        file_path = os.path.join(
+            Interface.FOLDER_NAME, folder_name, filename
+        )
+        try:
+            open(file_path)
+        except FileNotFoundError:
+            return ""
+        return file_path
+
     def handle_0(self):
         map_width, map_height, num_mines = Main.input_specification()
-        allow_display = Main.ask_allow_display()
-        record_mode_int = InputTools.f_input(
+        display_mode = InputTools.prompts_input(
+            "Please choose a display mode.",
+            int, 2, [
+                "Only display some basic information at the end of the game",
+                "Display the map updating after each step",
+                "Display the map and some basic information updating after "
+                "each step"
+            ]
+        ) + 1
+        record_mode_int = InputTools.prompts_input(
             "Please choose a recording mode to determine whether a game will"
             "be recorded.",
-            int, 0, choices_prompts=[
-                "No recordings",
-                "Record only won games",
-                "Record only lost games",
-                "Record all games"
+            int, 0, [
+                "No recording",
+                "Record if won",
+                "Record if lost",
+                "Always record"
             ]
         )
         record_mode_choices = ["false", "won", "lost", "true"]
         record_mode = record_mode_choices[record_mode_int]
-        if allow_display:
+        if display_mode:
             sleep_per_step = Main.input_sleep_per_step(0.0)
         else:
             sleep_per_step = 0.0
         ConsoleTools.hide_cursor()
-        g = AutoGame(
+        process_0 = AutoGame(
             self.console, map_width, map_height, num_mines,
-            allow_display=allow_display, record_mode=record_mode,
+            display_mode=display_mode, record_mode=record_mode,
             sleep_per_step_if_displayed=sleep_per_step
         )
-        g.run()
+        process_0.run()
 
     def handle_1(self):
         map_width, map_height, num_mines = Main.input_specification()
-        num_games = InputTools.f_input(
+        num_games = InputTools.assertion_input(
             "Please input times that the game should be played for.",
-            int, 10, assert_func=lambda x: x > 0
+            int, 10, lambda x: x > 0
         )
-        allow_display = Main.ask_allow_display()
-        record_mode_int = InputTools.f_input(
+        display_mode = InputTools.prompts_input(
+            "Please choose a display mode.",
+            int, 3, [
+                "Only display the statistics data",
+                "Display some basic information at the end of each game",
+                "Display the map updating after each step",
+                "Display the map and some basic information updating after "
+                "each step"
+            ]
+        )
+        record_mode_int = InputTools.prompts_input(
             "Please choose a recording mode to determine whether a game will"
             "be recorded.",
-            int, 0, choices_prompts=[
+            int, 0, [
                 "No recordings",
                 "Record only won games",
                 "Record only lost games",
@@ -1170,67 +1209,52 @@ class Main(object):
         record_mode_choices = ["false", "won", "lost", "true", "some"]
         record_mode = record_mode_choices[record_mode_int]
         if record_mode == "some":
-            num_recorded_games = InputTools.f_input(
+            num_recorded_games = InputTools.assertion_input(
                 "How many games shall be recorded (1 at least)?",
-                int, 1, assert_func=lambda x: 0 < x <= num_games
+                int, 1, lambda x: 0 < x <= num_games
             )
             record_mode = "some-" + str(num_recorded_games)
-        update_freq = InputTools.f_input(
+        update_freq = InputTools.assertion_input(
             "After how many games should the statistics data be refreshed?",
-            int, 1, assert_func=lambda x: x > 0
+            int, 1, lambda x: x > 0
         )
-        if allow_display:
+        if display_mode:
             sleep_per_step = Main.input_sleep_per_step(0.0)
             sleep_per_game = Main.input_sleep_per_game(0.0)
         else:
             sleep_per_step = 0.0
             sleep_per_game = 0.0
         ConsoleTools.hide_cursor()
-        s = Statistics(
+        process_1 = GameStatistics(
             self.console, map_width, map_height, num_mines, num_games,
-            allow_display=allow_display, record_mode=record_mode,
+            display_mode=display_mode, record_mode=record_mode,
             update_freq=update_freq,
             sleep_per_step_if_displayed=sleep_per_step,
             sleep_per_game_if_displayed=sleep_per_game
         )
-        s.run()
+        process_1.run()
 
     def handle_2(self):
-        def get_file_path(file_id):
-            split_index = file_id.rfind("-")
-            if split_index == -1:
-                return ""
-            folder_name = file_id[:split_index]
-            filename = file_id[split_index + 1:] + ".json"
-            file_path = os.path.join(
-                Interface.FOLDER_NAME, folder_name, filename
-            )
-            try:
-                open(file_path)
-            except FileNotFoundError:
-                return ""
-            return file_path
-
-        file_id = InputTools.f_input(
+        file_id = InputTools.assertion_input(
             "Please input the file-id of the game to be displayed.",
-            str, "30-16-99-0", assert_func=get_file_path
+            str, "30-16-99-0", Main.get_file_path
         )
-        file_path = get_file_path(file_id)
-        allow_display = InputTools.f_input(
+        file_path = Main.get_file_path(file_id)
+        display_mode = InputTools.prompts_input(
             "Please choose a display mode.",
-            int, 1, choices_prompts=[
+            int, 1, [
                 "Display the map updating after each step",
                 "Display the map and some basic information updating after "
                 "each step"
             ]
-        ) + 1
+        ) + 2
         sleep_per_step = Main.input_sleep_per_step(0.0)
         ConsoleTools.hide_cursor()
-        d = DisplayRecordedGame(
+        process_2 = DisplayRecordedGame(
             self.console, file_path,
-            allow_display=allow_display, sleep_per_step=sleep_per_step
+            display_mode=display_mode, sleep_per_step=sleep_per_step
         )
-        d.run()
+        process_2.run()
 
     def input_parameters(self):
         ConsoleTools.print_with_color(
@@ -1239,8 +1263,8 @@ class Main(object):
             "default value marked with '[]'.",
             color="green"
         )
-        mode = InputTools.f_input("Please choose a mode.",
-            int, 0, choices_prompts=[
+        mode = InputTools.prompts_input("Please choose a mode.",
+            int, 0, [
                 "Run a single game",
                 "Run many times to get statistics data",
                 "Display a recorded game from '{0}' file".format(

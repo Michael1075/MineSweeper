@@ -4,8 +4,5 @@
 
 /autosweeper/game_savings/
 !/autosweeper/game_savings/30-16-99/0.json
-
-/autosweeper/autosweeper.cpp
-/autosweeper/hello_world_plus.cpp
-/autosweeper/hello_world_plus.exe
+/autosweeper/cpp_test/
 /autosweeper/note.txt
