@@ -754,9 +754,11 @@ class GameStatistics(Interface):
         if game.num_unknown_boxes == 0:
             self.num_recorded_games -= 1
             game.record_game_data()
-        elif len(self.ranking_list) < self.num_recorded_games:
+        else:
             self.ranking_list.append((game.num_unknown_boxes, game))
             self.ranking_list.sort(key=lambda pair: pair[0])
+        if len(self.ranking_list) > self.num_recorded_games:
+            self.ranking_list.pop()
 
     def run(self):
         ConsoleTools.clear_console()
@@ -776,12 +778,10 @@ class GameStatistics(Interface):
             )
             game.run()
             self.update_statistics_data(game, serial_num)
-            if self.ranking_list is not None:
-                self.update_ranking_list(game)
-        if self.ranking_list is not None:
-            for pair in self.ranking_list:
-                game = pair[1]
-                game.record_game_data()
+            self.update_ranking_list(game)
+        for pair in self.ranking_list:
+            game = pair[1]
+            game.record_game_data()
 
 
 class DisplayRecordedGame(AutoGame):
@@ -1027,9 +1027,7 @@ class InputTools(object):
             result = data_cls(val)
         except ValueError:
             return False
-        if assert_func is not None and not assert_func(result):
-            return False
-        return True
+        return assert_func(result)
 
     @staticmethod
     def input_loop(base_prompt, prompt, data_cls, default_val, assert_func):
@@ -1056,9 +1054,9 @@ class InputTools(object):
     @staticmethod
     def choices_input(base_prompt, data_cls, default_val, choices):
         assert_func = lambda x: x in choices
-        choices_copy = choices.copy()
-        choices_copy[choices.index(default_val)] = "[{0}]".format(default_val)
-        suffix = "/".join(map(str, choices_copy))
+        choices_str = list(map(str, choices))
+        choices_str[choices.index(default_val)] = "[{0}]".format(default_val)
+        suffix = "/".join(choices_str)
         suffix = "({0}): ".format(suffix)
         return InputTools.input_loop(
             base_prompt, suffix, data_cls, default_val, assert_func
@@ -1068,8 +1066,7 @@ class InputTools(object):
     def prompts_input(base_prompt, data_cls, default_val, choices_prompts):
         choices = list(range(len(choices_prompts)))
         longest_index_num = len(choices_prompts) - 1
-        index_num_template = " - {0:" \
-            + str(len(str(longest_index_num))) + "}. "
+        index_num_template = " - {0:" + str(len(str(longest_index_num))) + "}. "
         longest_index_num_str = index_num_template.format(
             longest_index_num
         )
@@ -1156,7 +1153,7 @@ class Main(object):
             ]
         ) + 1
         record_mode_int = InputTools.prompts_input(
-            "Please choose a recording mode to determine whether a game will"
+            "Please choose a recording mode to determine whether a game will "
             "be recorded.",
             int, 0, [
                 "No recording",
@@ -1196,7 +1193,7 @@ class Main(object):
             ]
         )
         record_mode_int = InputTools.prompts_input(
-            "Please choose a recording mode to determine whether a game will"
+            "Please choose a recording mode to determine whether a game will "
             "be recorded.",
             int, 0, [
                 "No recordings",
