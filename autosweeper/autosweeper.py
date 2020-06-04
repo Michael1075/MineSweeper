@@ -54,8 +54,8 @@ class Core(object):
         self.game_status = 0
         self.num_steps = 0
         self.num_random_steps = 0
-        self.time_used = 0.0
         self.previous_index = 0
+        self.time_used = 0.0
 
     def coord_to_index(self, coord):
         x, y = coord
@@ -103,20 +103,20 @@ class Core(object):
     def get_common_indexes(self, index0, index1):
         surrounding0 = self.get_surrounding_indexes(index0)
         surrounding1 = self.get_surrounding_indexes(index1)
-        return list(set(surrounding0) & set(surrounding1))
+        return [e for e in surrounding0 if e in surrounding1]
 
     def get_suburb_indexes(self, index0, index1):
         surrounding0 = self.get_surrounding_indexes(index0)
         surrounding1 = self.get_surrounding_indexes(index1)
-        return list(set(surrounding0) - set(surrounding1))
+        return [e for e in surrounding0 if e not in surrounding1]
 
-    def indexes_ordered_in_spiral(self, index, indexes_set):
+    def indexes_ordered_in_spiral(self, index, index_list):
         spiral_ordered_indexes = self.spiral_trace_generator(index)
         result = []
-        while indexes_set:
+        while index_list:
             next_index = next(spiral_ordered_indexes)
-            if next_index in indexes_set:
-                indexes_set.discard(next_index)
+            if next_index in index_list:
+                index_list.remove(next_index)
                 result.append(next_index)
         return result
 
@@ -159,20 +159,22 @@ class Core(object):
         pass
 
     def expand_zero(self, index):
-        pre_updated_zero_region = set()
-        zero_region = {index}
+        pre_updated_zero_region = []
+        zero_region = [index]
         while len(pre_updated_zero_region) != len(zero_region):
-            zero_region_difference_set = zero_region - pre_updated_zero_region
+            zero_region_difference = [
+                e for e in zero_region if e not in pre_updated_zero_region
+            ]
             pre_updated_zero_region = zero_region.copy()
-            for i in zero_region_difference_set:
+            for i in zero_region_difference:
                 for j in self.get_surrounding_indexes_with_self(i):
-                    if self.base_map[j] == 0:
-                        zero_region.add(j)
-        expand_region = set()
+                    if self.base_map[j] == 0 and j not in zero_region:
+                        zero_region.append(j)
+        expand_region = []
         for i in zero_region:
             for j in self.get_surrounding_indexes_with_self(i):
-                if self.view_map[j] == 9:
-                    expand_region.add(j)
+                if self.view_map[j] == 9 and j not in expand_region:
+                    expand_region.append(j)
         for i in self.indexes_ordered_in_spiral(index, expand_region):
             self.explore_single_safe_box(i)
 
@@ -246,7 +248,7 @@ class Core(object):
                 self.view_map[i] = 13
                 to_be_updates_indexes.append(i)
         for i in self.indexes_ordered_in_spiral(
-            self.previous_index, set(to_be_updates_indexes)
+            self.previous_index, to_be_updates_indexes
         ):
             self.update_map(i)
         self.game_status = 3
@@ -258,7 +260,7 @@ class Core(object):
                 self.flag_blank_box_without_updating(i)
                 to_be_updates_indexes.append(i)
         for i in self.indexes_ordered_in_spiral(
-            self.previous_index, set(to_be_updates_indexes)
+            self.previous_index, to_be_updates_indexes
         ):
             self.update_map(i)
         self.game_status = 2
@@ -355,7 +357,7 @@ class Logic(Core):
             self.cached_steps
         ))
         if self.cached_steps:
-            return self.cached_steps.pop()
+            return self.cached_steps.pop(0)
         inferred_box_indexes = self.spiral_trace_generator(
             self.previous_index
         )
@@ -390,6 +392,53 @@ class Logic(Core):
             self.exploit_step(next_step)
 
 
+class GameRecorder(object):
+    FOLDER_NAME = "game_savings"
+
+    def __init__(self, game):
+        self.map_width = game.map_width
+        self.map_height = game.map_height
+        self.num_mines = game.num_mines
+        self.game_status = game.game_status
+        self.progress = game.num_boxes - game.num_unknown_boxes
+        self.num_flags = game.num_mines - game.num_unknown_mines
+        self.num_steps = game.num_steps
+        self.num_guesses = game.num_random_steps
+        self.time_used = game.time_used
+        self.mine_indexes = game.mine_indexes
+        self.step_index_list = game.step_index_list
+        self.step_mode_list = game.step_mode_list
+
+    def get_json_dict(self):
+        return {
+            "map_width": str(self.map_width),
+            "map_height": str(self.map_height),
+            "num_mines": str(self.num_mines),
+            "game_result": "won" if self.game_status == 2 else "lost",
+            "progress": str(self.progress),
+            "num_flags": str(self.num_flags),
+            "num_steps": str(self.num_steps),
+            "num_guesses": str(self.num_guesses),
+            "time_used": "{0:.3f}".format(self.time_used),
+            "mine_indexes": " ".join(map(str, self.mine_indexes)),
+            "step_indexes": " ".join(map(str, self.step_index_list)),
+            "step_mode_nums": "".join(map(str, self.step_mode_list)),
+        }
+
+    def record(self):
+        json_dict = self.get_json_dict()
+        folder_name = "-".join(map(str, (
+            self.map_width, self.map_height, self.num_mines
+        )))
+        folder_path = os.path.join(GameRecorder.FOLDER_NAME, folder_name)
+        if not os.path.exists(folder_path):
+            os.makedirs(folder_path)
+        filename = str(len(os.listdir(folder_path))) + ".json"
+        file_path = os.path.join(folder_path, filename)
+        with open(file_path, "w") as output_file:
+            json.dump(json_dict, output_file, indent=0)
+
+
 class Interface(Logic):
     BOX_CHAR_LIST = (
         ("\u3000", 0x00),  # black        "　"
@@ -418,9 +467,8 @@ class Interface(Logic):
     )
     GAME_BASE_INFO_KEYS = ("Size", "Progress", "Mines", "Steps", "Guesses")
     CELL_SEPARATOR = "  "
-    FOLDER_NAME = "game_savings"
 
-    def __init__(self, console, map_width, map_height, num_mines, *,
+    def __init__(self, console, map_width, map_height, num_mines,
             display_mode, record_mode, sleep_per_step_if_displayed):
         """
         :param display_mode: int in range(4)
@@ -475,6 +523,31 @@ class Interface(Logic):
             lines = self.map_height + 8
         self.console_cols = cols
         self.console_lines = lines
+
+    def re_initialize(self):
+        num_boxes = self.num_boxes
+        num_mines = self.num_mines
+
+        self.mine_indexes = [-1] * num_mines
+        self.base_map = [0] * num_boxes
+        self.view_map = [9] * num_boxes
+        self.unknown_map = [0] * num_boxes
+        self.flags_map = [0] * num_boxes
+
+        self.game_status = 0
+        self.num_steps = 0
+        self.num_random_steps = 0
+        self.previous_index = 0
+        self.time_used = 0.0
+
+        self.num_unknown_boxes = num_boxes
+        self.num_unknown_mines = num_mines
+
+        self.cached_steps = []
+        self.step_index_list = []
+        self.step_mode_list = []
+
+        self.init_unknown_map()
 
     def exploit_step(self, step):
         if self.record_mode != 0:
@@ -561,60 +634,36 @@ class Interface(Logic):
             Interface.CELL_SEPARATOR
         )
 
-    def init_display_view_map(self):
-        if self.display_mode == 0:
-            self.print_game_base_info_values()
+    def init_display_frame(self):
         self.console.print_in_line(4, self.line_separator)
+        self.console.print_in_line(self.map_height + 5, self.line_separator)
+        # TODO: a rectangle frame
+
+    def display_new_view_map(self):
         blank_tuple = Interface.BOX_CHAR_LIST[9]
         view_map_line_str = blank_tuple[0] * self.map_width
         for line_index in range(5, self.map_height + 5):
             self.console.print_in_line(
                 line_index, view_map_line_str, color=blank_tuple[1]
             )
-        self.console.print_in_line(self.map_height + 5, self.line_separator)
 
     def run(self):
         if self.display_mode == 0 or self.display_mode == 1:
-            self.init_display_view_map()
+            if self.display_mode == 0:
+                self.print_game_base_info_values()
+            self.display_new_view_map()
         Logic.run(self)
         if self.record_mode == 1 \
                 or self.record_mode == self.game_status == 2 \
                 or self.record_mode == self.game_status == 3:
             self.record_game_data()
 
-    def generate_json_filename(self, num):
-        return "-".join(map(str, (
-            self.map_width, self.map_height, self.num_mines, num
-        ))) + ".json"
-
-    def get_json_dict(self):
-        return {
-            "map_width": str(self.map_width),
-            "map_height": str(self.map_height),
-            "num_mines": str(self.num_mines),
-            "game_result": "won" if self.game_status == 2 else "lost",
-            "progress": str(self.num_boxes - self.num_unknown_boxes),
-            "num_flags": str(self.num_mines - self.num_unknown_mines),
-            "num_steps": str(self.num_steps),
-            "num_guesses": str(self.num_random_steps),
-            "time_used": "{0:.3f}".format(self.time_used),
-            "mine_indexes": " ".join(map(str, self.mine_indexes)),
-            "step_indexes": " ".join(map(str, self.step_index_list)),
-            "step_mode_nums": "".join(map(str, self.step_mode_list)),
-        }
+    def get_recorder(self):
+        return GameRecorder(self)
 
     def record_game_data(self):
-        json_dict = self.get_json_dict()
-        folder_name = "-".join(map(str, (
-            self.map_width, self.map_height, self.num_mines
-        )))
-        folder_path = os.path.join(Interface.FOLDER_NAME, folder_name)
-        if not os.path.exists(folder_path):
-            os.makedirs(folder_path)
-        filename = str(len(os.listdir(folder_path))) + ".json"
-        file_path = os.path.join(folder_path, filename)
-        with open(file_path, "w") as output_file:
-            json.dump(json_dict, output_file, indent=0)
+        recorder = self.get_recorder()
+        recorder.record()
 
     def raise_init_mine_map_error(self):
         self.console.print_at_end(
@@ -631,6 +680,8 @@ class AutoGame(Interface):
         self.console.print_copyright_str()
         if self.display_mode != 3:
             self.print_game_base_info_keys()
+            if self.display_mode == 0 or self.display_mode == 1:
+                self.init_display_frame()
         Interface.run(self)
 
 
@@ -642,13 +693,12 @@ class GameStatistics(Interface):
     )
     KEY_VAL_SEPARATOR = " "
 
-    def __init__(self, console, map_width, map_height, num_mines, num_games, *,
+    def __init__(self, console, map_width, map_height, num_mines, num_games,
             display_mode, record_mode, update_freq,
             sleep_per_step_if_displayed, sleep_per_game_if_displayed):
         Interface.__init__(
             self, console, map_width, map_height, num_mines,
-            display_mode=display_mode, record_mode=record_mode,
-            sleep_per_step_if_displayed=sleep_per_step_if_displayed
+            display_mode, record_mode, sleep_per_step_if_displayed
         )
         self.num_games = num_games
         self.update_freq = update_freq
@@ -812,9 +862,12 @@ class GameStatistics(Interface):
         if insertion_index < list_length:
             for i in range(list_length - 1, insertion_index, -1):
                 self.ranking_list[i] = self.ranking_list[i - 1]
-            self.ranking_list[insertion_index] = (num_unknown_boxes, game)
+            game_recorder = game.get_recorder()
+            self.ranking_list[insertion_index] = (
+                num_unknown_boxes, game_recorder
+            )
             if num_unknown_boxes == 0:
-                game.record_game_data()
+                game_recorder.record()
 
     def run(self):
         ConsoleTools.clear_console()
@@ -822,38 +875,35 @@ class GameStatistics(Interface):
         self.console.print_copyright_str()
         if self.display_mode != 3:
             self.print_game_base_info_keys()
+            if self.display_mode == 0 or self.display_mode == 1:
+                self.init_display_frame()
         self.print_statistics_keys()
         self.print_statistics_values(0)
+        game = Interface(
+            self.console, self.map_width, self.map_height, self.num_mines,
+            self.display_mode, self.record_mode,
+            self.sleep_per_step_if_displayed
+        )
         for game_index in range(self.num_games):
             if game_index > 0:
                 time.sleep(self.sleep_per_game_if_displayed)
-            game = Interface(
-                self.console, self.map_width, self.map_height, self.num_mines,
-                display_mode=self.display_mode,
-                record_mode=self.record_mode,
-                sleep_per_step_if_displayed=self.sleep_per_step_if_displayed
-            )
             game.run()
             self.update_statistics_data(game, game_index)
             self.update_ranking_list(game)
-        begin_recording_index = 0
-        while begin_recording_index < self.num_recorded_games \
-                and self.ranking_list[begin_recording_index][0] == 0:
-            begin_recording_index += 1
-        for pair in self.ranking_list[begin_recording_index:]:
-            game = pair[1]
-            game.record_game_data()
+            game.re_initialize()
+        for pair in self.ranking_list[self.num_games_won:]:
+            game_recorder = pair[1]
+            game_recorder.record()
 
 
 class DisplayRecordedGame(AutoGame):
-    def __init__(self, console, file_path, *, display_mode, sleep_per_step):
+    def __init__(self, console, file_path, display_mode, sleep_per_step):
         with open(file_path, "r") as input_file:
             json_dict = json.load(input_file)
         AutoGame.__init__(
             self, console, int(json_dict["map_width"]),
             int(json_dict["map_height"]), int(json_dict["num_mines"]),
-            display_mode=display_mode, record_mode=0,
-            sleep_per_step_if_displayed=sleep_per_step
+            display_mode, 0, sleep_per_step
         )
         self.mine_indexes = list(map(
             int, json_dict["mine_indexes"].split()
@@ -886,7 +936,7 @@ class ConsoleCursor(object):
 
 
 class ConsoleCursorInfo(ctypes.Structure, ConsoleCursor):
-    _fields_ = [('dwSize', ctypes.c_int), ('bVisible', ctypes.c_int)]
+    _fields_ = [("dwSize", ctypes.c_int), ("bVisible", ctypes.c_int)]
     DEFAULT_DW_SIZE = 20
 
     def __init__(self, visible):
@@ -972,16 +1022,16 @@ class ConsoleTools(object):
         ConsoleTools.__show_console_window(3)
 
     @staticmethod
-    def __set_cmd_text_color(*, color):
+    def __set_cmd_text_color(color):
         ConsoleTextColor(color)
 
     @staticmethod
     def __reset_color():
-        ConsoleTools.__set_cmd_text_color(color=0x0f)
+        ConsoleTools.__set_cmd_text_color(0x0f)
 
     @staticmethod
     def print_with_color(value, *, color):
-        ConsoleTools.__set_cmd_text_color(color=color)
+        ConsoleTools.__set_cmd_text_color(color)
         print(value)
         ConsoleTools.__reset_color()
 
@@ -1068,7 +1118,7 @@ class InputTools(object):
         )
 
     @staticmethod
-    def check_input(val, data_cls, assert_func):
+    def check_input(data_cls, val, assert_func):
         try:
             result = data_cls(val)
         except ValueError:
@@ -1076,60 +1126,118 @@ class InputTools(object):
         return assert_func(result)
 
     @staticmethod
-    def input_loop(base_prompt, prompt, data_cls, default_val, assert_func):
+    def input_loop(data_cls, base_prompt, prompt, default_val, assert_func):
         print(base_prompt)
         val = InputTools.input_with_default_val(prompt, default_val)
-        while not InputTools.check_input(val, data_cls, assert_func):
+        while not InputTools.check_input(data_cls, val, assert_func):
             val = InputTools.input_again(default_val)
         return data_cls(val)
 
     @staticmethod
-    def free_input(base_prompt, data_cls, default_val):
-        assert_func = lambda x: True
-        return InputTools.assertion_input(
-            base_prompt, data_cls, default_val, assert_func
-        )
-
-    @staticmethod
-    def assertion_input(base_prompt, data_cls, default_val, assert_func):
+    def assertion_input(data_cls, base_prompt, default_val, assert_func):
         suffix = "[{0}]: ".format(default_val)
         return InputTools.input_loop(
-            base_prompt, suffix, data_cls, default_val, assert_func
+            data_cls, base_prompt, suffix, default_val, assert_func
         )
 
     @staticmethod
-    def choices_input(base_prompt, data_cls, default_val, choices):
-        assert_func = lambda x: x in choices
+    def choices_input(data_cls, base_prompt, default_val, choices):
+        def assert_func(x):
+            return x in choices
         choices_str = list(map(str, choices))
         choices_str[choices.index(default_val)] = "[{0}]".format(default_val)
         suffix = "/".join(choices_str)
         suffix = "({0}): ".format(suffix)
         return InputTools.input_loop(
-            base_prompt, suffix, data_cls, default_val, assert_func
+            data_cls, base_prompt, suffix, default_val, assert_func
         )
 
     @staticmethod
-    def prompts_input(base_prompt, data_cls, default_val, choices_prompts):
+    def prompts_input(base_prompt, default_val, choices_prompts):
         choices = list(range(len(choices_prompts)))
         longest_index_num = len(choices_prompts) - 1
         index_num_template = " - {0:" + str(len(str(longest_index_num))) + "}. "
         longest_index_num_str = index_num_template.format(
             longest_index_num
         )
-        for choice_num, choices_prompt in enumerate(choices_prompts):
+        formatted_prompts = [base_prompt]
+        for choice_num, choice_prompt in enumerate(choices_prompts):
             prompt_tail = "." if choice_num == longest_index_num else ";"
-            choices_prompts[choice_num] = index_num_template.format(
-                choice_num
-            ) + choices_prompt.replace(
-                "\n", "\n" + len(longest_index_num_str) * " "
-            ) + prompt_tail
-        base_prompt = "\n".join([base_prompt] + choices_prompts)
+            formatted_prompts.append(
+                index_num_template.format(choice_num) + choice_prompt.replace(
+                    "\n", "\n" + len(longest_index_num_str) * " "
+                ) + prompt_tail
+            )
+        base_prompt = "\n".join(formatted_prompts)
         return InputTools.choices_input(
-            base_prompt, data_cls, default_val, choices
+            int, base_prompt, default_val, choices
         )
 
 
-class Main(object):
+class Prompt(object):
+    HINT = "\n".join([
+        "Hint: When typing in parameters, you can type nothing and directly",
+        "get the default value marked with '[]'."
+    ])
+    MODE = "Please choose a mode."
+    MAP_WIDTH = "Please input the width of the map."
+    MAP_HEIGHT = "Please input the height of the map."
+    NUM_MINES = "Please input the number of mines."
+    NUM_GAMES = "Please input times that the game should be played for."
+    FILE_ID = "Please input the file-id of the game to be displayed."
+    DISPLAY_MODE = "\n".join([
+        "Please choose a display mode to determine how each game will be",
+        "displayed (1 is recommended if the board is too large)."
+    ])
+    RECORD_MODE = "\n".join([
+        "Please choose a record mode to determine whether each game will be",
+        "recorded."
+    ])
+    NUM_RECORDED_GAMES = "How many games shall be recorded (1 at least)?"
+    UPDATE_FREQ = "After how many games should the statistics data be updated?"
+    SLEEP_PER_STEP = "How long shall the computer sleep after each step?"
+    SLEEP_PER_GAME = "How long shall the computer sleep after each game?"
+
+
+class ChoicesPrompts(object):
+    MODE = (
+        "Run a single game",
+        "Run many times to get statistics data",
+        "Display a recorded game from '{0}' file".format(
+            GameRecorder.FOLDER_NAME
+        )
+    )
+    DISPLAY_MODE_0 = (
+        "Display the map and basic information after each step",
+        "Display the map after each step",
+        "Only display basic information at the end of the game"
+    )
+    DISPLAY_MODE_1 = (
+        "Display the map and basic information after each step",
+        "Display the map after each step",
+        "Display basic information at the end of each game",
+        "Only display the statistics data"
+    )
+    DISPLAY_MODE_2 = (
+        "Display the map and basic information after each step",
+        "Display the map after each step"
+    )
+    RECORD_MODE_0 = (
+        "No recording",
+        "Always record",
+        "Record if won",
+        "Record if lost"
+    )
+    RECORD_MODE_1 = (
+        "No recordings",
+        "Record all games",
+        "Record only won games",
+        "Record only lost games",
+        "Record some best-played games"
+    )
+
+
+class MainProcess(object):
     def __init__(self):
         self.console = ConsoleTools()
         self.console.maximize_console_window()
@@ -1142,34 +1250,29 @@ class Main(object):
     @staticmethod
     def input_specification():
         map_width = InputTools.assertion_input(
-            "Please input the width of the map.",
-            int, 30, lambda x: x > 0
+            int, Prompt.MAP_WIDTH, 30, lambda x: x > 0
         )
         map_height = InputTools.assertion_input(
-            "Please input the height of the map.",
-            int, 16, lambda x: x > 0
+            int, Prompt.MAP_HEIGHT, 16, lambda x: x > 0
         )
         num_mines = InputTools.assertion_input(
-            "Please input the number of mines.",
-            int, 99, lambda x: x > 0
+            int, Prompt.NUM_MINES, 99, lambda x: x > 0
         )
         return map_width, map_height, num_mines
 
     @staticmethod
     def input_sleep_per_step(default_time):
         sleep_per_step = InputTools.assertion_input(
-            "How long shall the computer sleep after each step?",
-            float, default_time, lambda x: x >= 0.0
+            float, Prompt.SLEEP_PER_STEP, default_time, lambda x: x >= 0.0
         )
         return sleep_per_step
 
     @staticmethod
     def input_sleep_per_game(default_time):
-        sleep_per_step = InputTools.assertion_input(
-            "How long shall the computer sleep after each game?",
-            float, default_time, lambda x: x >= 0.0
+        sleep_per_game = InputTools.assertion_input(
+            float, Prompt.SLEEP_PER_GAME, default_time, lambda x: x >= 0.0
         )
-        return sleep_per_step
+        return sleep_per_game
 
     @staticmethod
     def get_file_path(file_id):
@@ -1179,7 +1282,7 @@ class Main(object):
         folder_name = file_id[:split_index]
         filename = file_id[split_index + 1:] + ".json"
         file_path = os.path.join(
-            Interface.FOLDER_NAME, folder_name, filename
+            GameRecorder.FOLDER_NAME, folder_name, filename
         )
         try:
             open(file_path)
@@ -1188,126 +1291,75 @@ class Main(object):
         return file_path
 
     def handle_0(self):
-        map_width, map_height, num_mines = Main.input_specification()
+        map_width, map_height, num_mines = MainProcess.input_specification()
         display_mode = InputTools.prompts_input(
-            "Please choose a display mode.",
-            int, 0, [
-                "Display the map and basic information after each step",
-                "Display the map after each step",
-                "Only display basic information at the end of the game"
-            ]
+            Prompt.DISPLAY_MODE, 0, ChoicesPrompts.DISPLAY_MODE_0
         )
         record_mode = InputTools.prompts_input(
-            "Please choose a recording mode to determine whether a game will "
-            "be recorded.",
-            int, 0, [
-                "No recording",
-                "Always record",
-                "Record if won",
-                "Record if lost"
-            ]
+            Prompt.RECORD_MODE, 0, ChoicesPrompts.RECORD_MODE_0
         )
         if display_mode != 2:
-            sleep_per_step = Main.input_sleep_per_step(0.0)
+            sleep_per_step = MainProcess.input_sleep_per_step(0.0)
         else:
             sleep_per_step = 0.0
         ConsoleTools.hide_cursor()
         process_0 = AutoGame(
             self.console, map_width, map_height, num_mines,
-            display_mode=display_mode, record_mode=record_mode,
-            sleep_per_step_if_displayed=sleep_per_step
+            display_mode, record_mode, sleep_per_step
         )
         process_0.run()
 
     def handle_1(self):
-        map_width, map_height, num_mines = Main.input_specification()
+        map_width, map_height, num_mines = MainProcess.input_specification()
         num_games = InputTools.assertion_input(
-            "Please input times that the game should be played for.",
-            int, 10, lambda x: x > 0
+            int, Prompt.NUM_GAMES, 10, lambda x: x > 0
         )
         display_mode = InputTools.prompts_input(
-            "Please choose a display mode.",
-            int, 0, [
-                "Display the map and basic information after each step",
-                "Display the map after each step",
-                "Display basic information at the end of each game",
-                "Only display the statistics data"
-            ]
+            Prompt.DISPLAY_MODE, 0, ChoicesPrompts.DISPLAY_MODE_0
         )
         record_mode = InputTools.prompts_input(
-            "Please choose a recording mode to determine whether a game will "
-            "be recorded.",
-            int, 0, [
-                "No recordings",
-                "Record all games",
-                "Record only won games",
-                "Record only lost games",
-                "Record some best-played games"
-            ]
+            Prompt.RECORD_MODE, 0, ChoicesPrompts.RECORD_MODE_1
         )
         if record_mode == 4:
             num_recorded_games = InputTools.assertion_input(
-                "How many games shall be recorded (1 at least)?",
-                int, 1, lambda x: 0 < x <= num_games
+                int, Prompt.NUM_RECORDED_GAMES, 1, lambda x: 0 < x <= num_games
             )
             record_mode = -num_recorded_games
         update_freq = InputTools.assertion_input(
-            "After how many games should the statistics data be refreshed?",
-            int, 1, lambda x: x > 0
+            int, Prompt.UPDATE_FREQ, 1, lambda x: x > 0
         )
         if display_mode != 3:
-            sleep_per_step = Main.input_sleep_per_step(0.0)
-            sleep_per_game = Main.input_sleep_per_game(0.0)
+            sleep_per_step = MainProcess.input_sleep_per_step(0.0)
+            sleep_per_game = MainProcess.input_sleep_per_game(0.0)
         else:
             sleep_per_step = 0.0
             sleep_per_game = 0.0
         ConsoleTools.hide_cursor()
         process_1 = GameStatistics(
             self.console, map_width, map_height, num_mines, num_games,
-            display_mode=display_mode, record_mode=record_mode,
-            update_freq=update_freq,
-            sleep_per_step_if_displayed=sleep_per_step,
-            sleep_per_game_if_displayed=sleep_per_game
+            display_mode, record_mode, update_freq,
+            sleep_per_step, sleep_per_game
         )
         process_1.run()
 
     def handle_2(self):
         file_id = InputTools.assertion_input(
-            "Please input the file-id of the game to be displayed.",
-            str, "30-16-99-0", Main.get_file_path
+            str, Prompt.FILE_ID, "30-16-99-0", MainProcess.get_file_path
         )
-        file_path = Main.get_file_path(file_id)
+        file_path = MainProcess.get_file_path(file_id)
         display_mode = InputTools.prompts_input(
-            "Please choose a display mode.",
-            int, 0, [
-                "Display the map and basic information after each step",
-                "Display the map after each step"
-            ]
+            Prompt.DISPLAY_MODE, 0, ChoicesPrompts.DISPLAY_MODE_2
         )
-        sleep_per_step = Main.input_sleep_per_step(0.0)
+        sleep_per_step = MainProcess.input_sleep_per_step(0.0)
         ConsoleTools.hide_cursor()
         process_2 = DisplayRecordedGame(
-            self.console, file_path,
-            display_mode=display_mode, sleep_per_step=sleep_per_step
+            self.console, file_path, display_mode, sleep_per_step
         )
         process_2.run()
 
     def input_parameters(self):
-        ConsoleTools.print_with_color(
-            "Hint: When inputting parameters, you can type nothing and "
-            "directly get the\n"
-            "default value marked with '[]'.",
-            color=0x0a
-        )
-        mode = InputTools.prompts_input("Please choose a mode.",
-            int, 0, [
-                "Run a single game",
-                "Run many times to get statistics data",
-                "Display a recorded game from '{0}' file".format(
-                    Interface.FOLDER_NAME
-                )
-            ]
-        )
+        ConsoleTools.print_with_color(Prompt.HINT, color=0x0a)
+        mode = InputTools.prompts_input(Prompt.MODE, 0, ChoicesPrompts.MODE)
         if mode == 0:
             self.handle_0()
         elif mode == 1:
@@ -1317,4 +1369,4 @@ class Main(object):
 
 
 if __name__ == "__main__":
-    Main()
+    MainProcess()
