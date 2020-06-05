@@ -20,20 +20,30 @@ def f_div(a, b):
         return 0.0
 
 
-def get_str_template(str_length, align, *, str_index=0):
-    """
-    :param align: int in range(-1, 2)
-        -1: align at left side
-        0: align at center
-        1: align at right side
-    """
-    if align == 1:
-        align_mark = ">"
-    elif align == 0:
-        align_mark = "^"
-    else:
-        align_mark = "<"
-    return "{" + str(str_index) + ":" + align_mark + str(str_length) + "}"
+class StringTools(object):
+    @staticmethod
+    def set_space(str_length, align, *, str_index=0):
+        """
+        :param align: int in range(-1, 2)
+            -1: align at left side
+            0: align at center
+            1: align at right side
+        """
+        if align == 1:
+            align_mark = ">"
+        elif align == 0:
+            align_mark = "^"
+        else:
+            align_mark = "<"
+        return "{" + str(str_index) + ":" + align_mark + str(str_length) + "}"
+    
+    @staticmethod
+    def set_decimal(decimal, *, str_index=0):
+        return "{" + str(str_index) + ":." + str(decimal) + "f}"
+    
+    @staticmethod
+    def set_percentage(decimal, *, str_index=0):
+        return "{" + str(str_index) + ":." + str(decimal) + "%}"
 
 
 class Core(object):
@@ -435,7 +445,7 @@ class GameRecorder(object):
             "num_flags": str(self.num_flags),
             "num_steps": str(self.num_steps),
             "num_guesses": str(self.num_guesses),
-            "time_used": "{0:.3f}".format(self.time_used),
+            "time_used": StringTools.set_decimal(3).format(self.time_used),
             "mine_indexes": " ".join(map(str, self.mine_indexes)),
             "step_indexes": " ".join(map(str, self.step_index_list)),
             "step_mode_nums": "".join(map(str, self.step_mode_list)),
@@ -483,6 +493,7 @@ class Interface(Logic):
     GAME_BASE_INFO_KEYS = ("Size", "Progress", "Mines", "Steps", "Guesses")
     CELL_SEPARATOR = "  "
     FRAME_PARTS = "\u2501\u2503\u2513\u250f\u2517\u251b"  # "━┃┓┏┗┛"
+    INIT_FAILURE_MSG = "Fatal: Failed to form a mine map with so many mines!"
 
     def __init__(self, console, map_width, map_height, num_mines,
             display_mode, record_mode, sleep_per_step_if_displayed):
@@ -614,9 +625,10 @@ class Interface(Logic):
 
     def print_game_status(self):
         status_tuple = Interface.GAME_STATUS_LIST[self.game_status]
-        game_status_str_template = get_str_template(self.status_info_width, -1)
         self.console.print_in_line(
-            1, game_status_str_template.format(status_tuple[0]),
+            1, StringTools.set_space(self.status_info_width, -1).format(
+                status_tuple[0]
+            ),
             color=status_tuple[1]
         )
 
@@ -692,10 +704,7 @@ class Interface(Logic):
         recorder.record()
 
     def raise_init_mine_map_error(self):
-        self.console.print_at_end(
-            1, "Fatal: Failed to form a mine map with so many mines!",
-            color=0x0c
-        )
+        self.console.print_at_end(1, Interface.INIT_FAILURE_MSG, color=0x0c)
         self.console.ready_to_quit()
 
 
@@ -715,7 +724,7 @@ class AutoGame(Interface):
 class GameStatistics(Interface):
     STATISTICS_TITLE = "- Statistics -"
     STATISTICS_KEYS = (
-        "Main progress", "Specification", "Games won", "Without guesses",
+        "Specification", "Main progress", "Games won", "Without guesses",
         "Avg. progress", "Avg. flags", "Avg. steps", "Avg. steps (won)",
         "Avg. guesses", "Avg. time", "Avg. time (won)"
     )
@@ -776,38 +785,58 @@ class GameStatistics(Interface):
             avg_num_steps, avg_won_games_num_steps, avg_num_random_steps,
             avg_time, avg_won_games_time):
         return (
-            "{0} / {1} ({2:.1%})".format(
-                serial_num, self.num_games,
-                f_div(serial_num, self.num_games)
-            ),
-            "{0} * {1} / {2} ({3:.1%})".format(
+            "{0} * {1} / {2} ({3})".format(
                 self.map_width, self.map_height, self.num_mines,
-                f_div(self.num_mines, self.num_boxes)
+                StringTools.set_percentage(2).format(
+                    f_div(self.num_mines, self.num_boxes)
+                )
             ),
-            "{0} / {1} ({2:.1%})".format(
+            "{0} / {1} ({2})".format(
+                serial_num, self.num_games,
+                StringTools.set_percentage(2).format(
+                    f_div(serial_num, self.num_games)
+                )
+            ),
+            "{0} / {1} ({2})".format(
                 num_games_won, serial_num,
-                f_div(num_games_won, serial_num)
+                StringTools.set_percentage(2).format(
+                    f_div(num_games_won, serial_num)
+                )
             ),
-            "{0} / {1} ({2:.1%})".format(
+            "{0} / {1} ({2})".format(
                 num_games_won_without_guesses, serial_num,
-                f_div(num_games_won_without_guesses, serial_num)
+                StringTools.set_percentage(2).format(
+                    f_div(num_games_won_without_guesses, serial_num)
+                )
             ),
-            "{0:.3f} / {1} ({2:.1%})".format(
-                avg_progress, self.num_boxes,
-                f_div(avg_progress, self.num_boxes)
+            "{0} / {1} ({2})".format(
+                StringTools.set_decimal(3).format(avg_progress),
+                self.num_boxes,
+                StringTools.set_percentage(2).format(
+                    f_div(avg_progress, self.num_boxes)
+                )
             ),
-            "{0:.3f} / {1} ({2:.1%})".format(
-                avg_num_flags, self.num_mines,
-                f_div(avg_num_flags, self.num_mines)
+            "{0} / {1} ({2})".format(
+                StringTools.set_decimal(3).format(avg_num_flags),
+                self.num_mines,
+                StringTools.set_percentage(2).format(
+                    f_div(avg_num_flags, self.num_mines)
+                )
             ),
-            "{0:.3f} step(s)".format(avg_num_steps),
-            "{0:.3f} step(s)".format(
-                avg_won_games_num_steps
+            "{0} step(s)".format(
+                StringTools.set_decimal(3).format(avg_num_steps)
             ),
-            "{0:.3f} step(s)".format(avg_num_random_steps),
-            "{0:.3f} ms".format(avg_time * 1e3),
-            "{0:.3f} ms".format(
-                avg_won_games_time * 1e3
+            "{0} step(s)".format(
+                StringTools.set_decimal(3).format(avg_won_games_num_steps)
+            ),
+            "{0} step(s)".format(
+                StringTools.set_decimal(3).format(avg_num_random_steps)
+            ),
+            "{0} ms".format(
+                StringTools.set_decimal(6).format(avg_time * 1e3)
+            ),
+            "{0} ms".format(
+                StringTools.set_decimal(6).format(avg_won_games_time * 1e3)
             ),
         )
 
@@ -840,19 +869,20 @@ class GameStatistics(Interface):
 
     def print_statistics_keys(self):
         begin_line_index = self.get_statistics_begin_line_index()
-        title_str_template = get_str_template(self.statistic_info_width, 0)
         self.console.print_in_line(
             begin_line_index - 1,
-            title_str_template.format(GameStatistics.STATISTICS_TITLE)
+            StringTools.set_space(self.statistic_info_width, 0).format(
+                GameStatistics.STATISTICS_TITLE
+            )
         )
-        key_info_str_template = get_str_template(self.key_info_width, -1)
-        key_info_str_template += GameStatistics.KEY_VAL_SEPARATOR
         for line_index, statistics_key in enumerate(
             GameStatistics.STATISTICS_KEYS
         ):
             self.console.print_in_line(
                 begin_line_index + line_index,
-                key_info_str_template.format(statistics_key)
+                StringTools.set_space(self.key_info_width, -1).format(
+                    statistics_key
+                ) + GameStatistics.KEY_VAL_SEPARATOR
             )
 
     def print_statistics_values(self, serial_num):
@@ -860,11 +890,12 @@ class GameStatistics(Interface):
         begin_line_index = self.get_statistics_begin_line_index()
         begin_col_index = self.key_info_width \
             + len(GameStatistics.KEY_VAL_SEPARATOR)
-        val_info_str_template = get_str_template(self.value_info_width, 1)
         for line_index, statistics_val in enumerate(statistics_values):
             self.console.print_at(
                 (begin_col_index, begin_line_index + line_index),
-                val_info_str_template.format(statistics_val)
+                StringTools.set_space(self.value_info_width, 1).format(
+                    statistics_val
+                )
             )
 
     def update_statistics_data(self, game, game_index):
@@ -1103,7 +1134,7 @@ class ConsoleTools(object):
     def print_list_as_table_row(self, line_index, list_obj,
             cell_width, align, cell_separator):
         cell_str_template_list = [
-            get_str_template(cell_width, align, str_index=k)
+            StringTools.set_space(cell_width, align, str_index=k)
             for k in range(len(list_obj))
         ]
         self.print_in_line(
@@ -1128,6 +1159,9 @@ class ConsoleTools(object):
 
 
 class InputTools(object):
+    WRONG_INPUT_MSG = "Wrong input!"
+    INPUT_AGAIN_PROMPT = "Please input again: "
+
     @staticmethod
     def input_with_default_val(prompt, default_val):
         val = input(prompt)
@@ -1137,9 +1171,9 @@ class InputTools(object):
 
     @staticmethod
     def input_again(default_val):
-        ConsoleTools.print_with_color("Wrong input!", color=0x0c)
+        ConsoleTools.print_with_color(InputTools.WRONG_INPUT_MSG, color=0x0c)
         return InputTools.input_with_default_val(
-            "Please input again: ", default_val
+            InputTools.INPUT_AGAIN_PROMPT, default_val
         )
 
     @staticmethod
@@ -1182,7 +1216,7 @@ class InputTools(object):
         choices = list(range(len(choices_prompts)))
         longest_index_num = len(choices_prompts) - 1
         index_num_template = " - {0}. ".format(
-            get_str_template(len(str(longest_index_num)), 1)
+            StringTools.set_space(len(str(longest_index_num)), 1)
         )
         longest_index_num_str = index_num_template.format(
             longest_index_num
@@ -1265,13 +1299,16 @@ class ChoicesPrompts(object):
 
 
 class MainProcess(object):
+    EXAMPLE_FILE_ID = "30-16-99-0"
+    FINISH_MSG = "Finished!"
+
     def __init__(self):
         self.console = ConsoleTools()
         self.console.maximize_console_window()
         self.console.set_console_size_to_default()
         self.console.print_copyright_str()
         self.input_parameters()
-        self.console.print_at_end(1, "Finished!", color=0x0a)
+        self.console.print_at_end(1, MainProcess.FINISH_MSG, color=0x0a)
         self.console.ready_to_quit()
 
     @staticmethod
@@ -1371,7 +1408,8 @@ class MainProcess(object):
 
     def handle_2(self):
         file_id = InputTools.assertion_input(
-            str, Prompt.FILE_ID, "30-16-99-0", MainProcess.get_file_path
+            str, Prompt.FILE_ID, MainProcess.EXAMPLE_FILE_ID,
+            MainProcess.get_file_path
         )
         file_path = MainProcess.get_file_path(file_id)
         display_mode = InputTools.prompts_input(
