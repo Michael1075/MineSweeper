@@ -20,6 +20,22 @@ def f_div(a, b):
         return 0.0
 
 
+def get_str_template(str_length, align, *, str_index=0):
+    """
+    :param align: int in range(-1, 2)
+        -1: align at left side
+        0: align at center
+        1: align at right side
+    """
+    if align == 1:
+        align_mark = ">"
+    elif align == 0:
+        align_mark = "^"
+    else:
+        align_mark = "<"
+    return "{" + str(str_index) + ":" + align_mark + str(str_length) + "}"
+
+
 class Core(object):
     def __init__(self, map_width, map_height, num_mines):
         """
@@ -458,7 +474,6 @@ class Interface(Logic):
         # enclosed_box: black
         # revealed_box: dark white
     )
-    LINE_SEPARATOR_UNIT = "\u2014"  # "—"
     GAME_STATUS_LIST = (
         ("Preparing...", 0x0e),   # yellow
         ("Processing...", 0x0e),  # yellow
@@ -467,6 +482,7 @@ class Interface(Logic):
     )
     GAME_BASE_INFO_KEYS = ("Size", "Progress", "Mines", "Steps", "Guesses")
     CELL_SEPARATOR = "  "
+    FRAME_PARTS = "\u2501\u2503\u2513\u250f\u2517\u251b"  # "━┃┓┏┗┛"
 
     def __init__(self, console, map_width, map_height, num_mines,
             display_mode, record_mode, sleep_per_step_if_displayed):
@@ -486,7 +502,6 @@ class Interface(Logic):
         """
         Logic.__init__(self, map_width, map_height, num_mines)
         self.console = console
-        self.line_separator = map_width * Interface.LINE_SEPARATOR_UNIT
         self.display_mode = display_mode
         self.record_mode = record_mode
         self.sleep_per_step_if_displayed = sleep_per_step_if_displayed
@@ -519,7 +534,7 @@ class Interface(Logic):
         elif self.display_mode == 2:
             lines = 6
         else:
-            cols = max(cols, self.map_width * 2)
+            cols = max(cols, (self.map_width + 2) * 2)
             lines = self.map_height + 8
         self.console_cols = cols
         self.console_lines = lines
@@ -583,6 +598,7 @@ class Interface(Logic):
 
     def calculate_console_coord(self, index):
         x, y = self.index_to_coord(index)
+        x += 1
         x *= 2
         y += 5
         return x, y
@@ -598,9 +614,10 @@ class Interface(Logic):
 
     def print_game_status(self):
         status_tuple = Interface.GAME_STATUS_LIST[self.game_status]
-        string_template = "{0:<" + str(self.status_info_width) + "}"
+        game_status_str_template = get_str_template(self.status_info_width, -1)
         self.console.print_in_line(
-            1, string_template.format(status_tuple[0]), color=status_tuple[1]
+            1, game_status_str_template.format(status_tuple[0]),
+            color=status_tuple[1]
         )
 
     def get_game_base_info_values_template(self, num_unknown_boxes,
@@ -635,16 +652,25 @@ class Interface(Logic):
         )
 
     def init_display_frame(self):
-        self.console.print_in_line(4, self.line_separator)
-        self.console.print_in_line(self.map_height + 5, self.line_separator)
-        # TODO: a rectangle frame
+        parts = Interface.FRAME_PARTS
+        right_side_index = 2 * (self.map_width + 1)
+        self.console.print_in_line(
+            4, parts[3] + self.map_width * parts[0] + parts[2]
+        )
+        for line_index in range(5, self.map_height + 5):
+            self.console.print_in_line(line_index, parts[1])
+        for line_index in range(5, self.map_height + 5):
+            self.console.print_at((right_side_index, line_index), parts[1])
+        self.console.print_in_line(
+            self.map_height + 5, parts[4] + self.map_width * parts[0] + parts[5]
+        )
 
     def display_new_view_map(self):
         blank_tuple = Interface.BOX_CHAR_LIST[9]
         view_map_line_str = blank_tuple[0] * self.map_width
         for line_index in range(5, self.map_height + 5):
-            self.console.print_in_line(
-                line_index, view_map_line_str, color=blank_tuple[1]
+            self.console.print_at(
+                (2, line_index), view_map_line_str, color=blank_tuple[1]
             )
 
     def run(self):
@@ -680,12 +706,14 @@ class AutoGame(Interface):
         self.console.print_copyright_str()
         if self.display_mode != 3:
             self.print_game_base_info_keys()
+            self.print_game_base_info_values()
             if self.display_mode == 0 or self.display_mode == 1:
                 self.init_display_frame()
         Interface.run(self)
 
 
 class GameStatistics(Interface):
+    STATISTICS_TITLE = "- Statistics -"
     STATISTICS_KEYS = (
         "Main progress", "Specification", "Games won", "Without guesses",
         "Avg. progress", "Avg. flags", "Avg. steps", "Avg. steps (won)",
@@ -721,6 +749,7 @@ class GameStatistics(Interface):
 
         self.key_info_width = 0
         self.value_info_width = 0
+        self.statistic_info_width = 0
         self.init_statistics_params()
 
     def init_statistics_params(self):
@@ -737,6 +766,8 @@ class GameStatistics(Interface):
         self.value_info_width = max(map(len, longest_statistics_values))
         statistic_info_width = self.key_info_width \
             + len(GameStatistics.KEY_VAL_SEPARATOR) + self.value_info_width
+        assert len(GameStatistics.STATISTICS_TITLE) <= statistic_info_width
+        self.statistic_info_width = statistic_info_width
         self.console_cols = max(self.console_cols, statistic_info_width)
         self.console_lines += statistic_info_height + 1
 
@@ -809,14 +840,19 @@ class GameStatistics(Interface):
 
     def print_statistics_keys(self):
         begin_line_index = self.get_statistics_begin_line_index()
-        string_template = "{0:<" + str(self.key_info_width) + "}"
-        string_template += GameStatistics.KEY_VAL_SEPARATOR
+        title_str_template = get_str_template(self.statistic_info_width, 0)
+        self.console.print_in_line(
+            begin_line_index - 1,
+            title_str_template.format(GameStatistics.STATISTICS_TITLE)
+        )
+        key_info_str_template = get_str_template(self.key_info_width, -1)
+        key_info_str_template += GameStatistics.KEY_VAL_SEPARATOR
         for line_index, statistics_key in enumerate(
             GameStatistics.STATISTICS_KEYS
         ):
             self.console.print_in_line(
                 begin_line_index + line_index,
-                string_template.format(statistics_key)
+                key_info_str_template.format(statistics_key)
             )
 
     def print_statistics_values(self, serial_num):
@@ -824,11 +860,11 @@ class GameStatistics(Interface):
         begin_line_index = self.get_statistics_begin_line_index()
         begin_col_index = self.key_info_width \
             + len(GameStatistics.KEY_VAL_SEPARATOR)
-        string_template = "{0:>" + str(self.value_info_width) + "}"
+        val_info_str_template = get_str_template(self.value_info_width, 1)
         for line_index, statistics_val in enumerate(statistics_values):
             self.console.print_at(
                 (begin_col_index, begin_line_index + line_index),
-                string_template.format(statistics_val)
+                val_info_str_template.format(statistics_val)
             )
 
     def update_statistics_data(self, game, game_index):
@@ -875,6 +911,7 @@ class GameStatistics(Interface):
         self.console.print_copyright_str()
         if self.display_mode != 3:
             self.print_game_base_info_keys()
+            self.print_game_base_info_values()
             if self.display_mode == 0 or self.display_mode == 1:
                 self.init_display_frame()
         self.print_statistics_keys()
@@ -1065,25 +1102,13 @@ class ConsoleTools(object):
 
     def print_list_as_table_row(self, line_index, list_obj,
             cell_width, align, cell_separator):
-        """
-        :param align: int in range(-1, 2)
-            -1: align at left side
-            0: align at center
-            1: align at right side
-        """
-        if align == 1:
-            align_mark = ">"
-        elif align == 0:
-            align_mark = "^"
-        else:
-            align_mark = "<"
-        string_template_list = [
-            "{" + str(k) + ":" + align_mark + str(cell_width) + "}"
+        cell_str_template_list = [
+            get_str_template(cell_width, align, str_index=k)
             for k in range(len(list_obj))
         ]
         self.print_in_line(
             line_index,
-            cell_separator.join(string_template_list).format(*list_obj)
+            cell_separator.join(cell_str_template_list).format(*list_obj)
         )
 
     def print_copyright_str(self):
@@ -1187,7 +1212,7 @@ class Prompt(object):
     FILE_ID = "Please input the file-id of the game to be displayed."
     DISPLAY_MODE = "\n".join([
         "Please choose a display mode to determine how each game will be",
-        "displayed (1 is recommended if the board is too large)."
+        "displayed (1 is recommended if the map is too large)."
     ])
     RECORD_MODE = "\n".join([
         "Please choose a record mode to determine whether each game will be",
