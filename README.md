@@ -7,7 +7,7 @@
 | `charsweeper.py`    | python                  | 2018/12/22  | frozen  |
 | `minesweeper_tk.py` | python                  | 2019/2/13   | frozen  |
 | `minesweeper_js`    | javascript & html & css | 2020/4/4    | frozen  |
-| `autosweeper`       | python                  | 2020/5/31   | ongoing |
+| `autosweeper`       | python                  | 2020/6/5    | ongoing |
 
 ## `charsweeper.py`
 

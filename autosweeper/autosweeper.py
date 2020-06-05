@@ -693,7 +693,7 @@ class Interface(Logic):
 
     def raise_init_mine_map_error(self):
         self.console.print_at_end(
-            1, "fatal: Failed to form a mine map with so many mines!",
+            1, "Fatal: Failed to form a mine map with so many mines!",
             color=0x0c
         )
         self.console.ready_to_quit()
@@ -1181,7 +1181,9 @@ class InputTools(object):
     def prompts_input(base_prompt, default_val, choices_prompts):
         choices = list(range(len(choices_prompts)))
         longest_index_num = len(choices_prompts) - 1
-        index_num_template = " - {0:" + str(len(str(longest_index_num))) + "}. "
+        index_num_template = " - {0}. ".format(
+            get_str_template(len(str(longest_index_num)), 1)
+        )
         longest_index_num_str = index_num_template.format(
             longest_index_num
         )
