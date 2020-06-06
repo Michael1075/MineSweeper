@@ -1385,7 +1385,7 @@ class MainProcess(object):
             int, Prompt.NUM_GAMES, 10, lambda x: x > 0
         )
         display_mode = InputTools.prompts_input(
-            Prompt.DISPLAY_MODE, 0, ChoicesPrompts.DISPLAY_MODE_0
+            Prompt.DISPLAY_MODE, 0, ChoicesPrompts.DISPLAY_MODE_1
         )
         record_mode = InputTools.prompts_input(
             Prompt.RECORD_MODE, 0, ChoicesPrompts.RECORD_MODE_1
