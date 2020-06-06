@@ -1,3 +1,6 @@
+#!/usr/bin/env python3
+# coding: utf-8
+
 from abc import abstractmethod
 import ctypes
 import json
@@ -11,39 +14,6 @@ __author__ = "Michael W"
 __website__ = "https://github.com/Michael1075/autosweeper"
 
 COPYRIGHT_STR = os.path.basename(__file__) + " - " + __website__
-
-
-def f_div(a, b):
-    try:
-        return a / b
-    except ZeroDivisionError:
-        return 0.0
-
-
-class StringTools(object):
-    @staticmethod
-    def set_space(str_length, align, *, str_index=0):
-        """
-        :param align: int in range(-1, 2)
-            -1: align at left side
-            0: align at center
-            1: align at right side
-        """
-        if align == 1:
-            align_mark = ">"
-        elif align == 0:
-            align_mark = "^"
-        else:
-            align_mark = "<"
-        return "{" + str(str_index) + ":" + align_mark + str(str_length) + "}"
-    
-    @staticmethod
-    def set_decimal(decimal, *, str_index=0):
-        return "{" + str(str_index) + ":." + str(decimal) + "f}"
-    
-    @staticmethod
-    def set_percentage(decimal, *, str_index=0):
-        return "{" + str(str_index) + ":." + str(decimal) + "%}"
 
 
 class Core(object):
@@ -436,6 +406,9 @@ class GameRecorder(object):
         self.step_mode_list = game.step_mode_list
 
     def get_json_dict(self):
+        time_used_str = "{0} ms".format(
+            StringTools.set_decimal(6).format(self.time_used * 1e3)
+        )
         return {
             "map_width": str(self.map_width),
             "map_height": str(self.map_height),
@@ -445,7 +418,7 @@ class GameRecorder(object):
             "num_flags": str(self.num_flags),
             "num_steps": str(self.num_steps),
             "num_guesses": str(self.num_guesses),
-            "time_used": StringTools.set_decimal(3).format(self.time_used),
+            "time_used": time_used_str,
             "mine_indexes": " ".join(map(str, self.mine_indexes)),
             "step_indexes": " ".join(map(str, self.step_index_list)),
             "step_mode_nums": "".join(map(str, self.step_mode_list)),
@@ -994,6 +967,39 @@ class DisplayRecordedGame(AutoGame):
 
     def make_first_choice_index(self):
         return self.make_choice()[0]
+
+
+def f_div(a, b):
+    try:
+        return a / b
+    except ZeroDivisionError:
+        return 0.0
+
+
+class StringTools(object):
+    @staticmethod
+    def set_space(str_length, align, *, str_index=0):
+        """
+        :param align: int in range(-1, 2)
+            -1: align at left side
+            0: align at center
+            1: align at right side
+        """
+        if align == 1:
+            align_mark = ">"
+        elif align == 0:
+            align_mark = "^"
+        else:
+            align_mark = "<"
+        return "{" + str(str_index) + ":" + align_mark + str(str_length) + "}"
+    
+    @staticmethod
+    def set_decimal(decimal, *, str_index=0):
+        return "{" + str(str_index) + ":." + str(decimal) + "f}"
+    
+    @staticmethod
+    def set_percentage(decimal, *, str_index=0):
+        return "{" + str(str_index) + ":." + str(decimal) + "%}"
 
 
 class ConsoleCursor(object):
