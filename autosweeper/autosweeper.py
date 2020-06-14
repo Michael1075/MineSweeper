@@ -46,7 +46,16 @@ class Core(object):
         self.mine_indexes = [-1] * num_mines
         self.base_map = [0] * num_boxes
         self.view_map = [9] * num_boxes
+        self.game_status = 0
+        self.num_steps = 0
+        self.num_random_steps = 0
+        self.previous_index = 0
+        self.time_used = 0.0
 
+    def re_initialize(self):
+        self.mine_indexes = [-1] * self.num_mines
+        self.base_map = [0] * self.num_boxes
+        self.view_map = [9] * self.num_boxes
         self.game_status = 0
         self.num_steps = 0
         self.num_random_steps = 0
@@ -96,15 +105,21 @@ class Core(object):
         result.pop(0)
         return result
 
+    def get_union(self, list0, list1):
+        return [e for e in list0 if e in list1]
+
+    def get_difference(self, list0, list1):
+        return [e for e in list0 if e not in list1]
+
     def get_common_indexes(self, index0, index1):
         surrounding0 = self.get_surrounding_indexes(index0)
         surrounding1 = self.get_surrounding_indexes(index1)
-        return [e for e in surrounding0 if e in surrounding1]
+        return self.get_union(surrounding0, surrounding1)
 
     def get_suburb_indexes(self, index0, index1):
         surrounding0 = self.get_surrounding_indexes(index0)
         surrounding1 = self.get_surrounding_indexes(index1)
-        return [e for e in surrounding0 if e not in surrounding1]
+        return self.get_difference(surrounding0, surrounding1)
 
     def indexes_ordered_in_spiral(self, index, index_list):
         spiral_ordered_indexes = self.spiral_trace_generator(index)
@@ -158,9 +173,9 @@ class Core(object):
         pre_updated_zero_region = []
         zero_region = [index]
         while len(pre_updated_zero_region) != len(zero_region):
-            zero_region_difference = [
-                e for e in zero_region if e not in pre_updated_zero_region
-            ]
+            zero_region_difference = self.get_difference(
+                zero_region, pre_updated_zero_region
+            )
             pre_updated_zero_region = zero_region.copy()
             for i in zero_region_difference:
                 for j in self.get_surrounding_indexes_with_self(i):
@@ -284,14 +299,20 @@ class Logic(Core):
         self.num_unknown_mines = num_mines
         self.unknown_map = [0] * num_boxes
         self.flags_map = [0] * num_boxes
-
         self.cached_steps = []
-
         self.init_unknown_map()
 
     def init_unknown_map(self):
         for i in range(self.num_boxes):
             self.unknown_map[i] = len(self.get_surrounding_indexes(i))
+
+    def re_initialize(self):
+        Core.re_initialize(self)
+        self.unknown_map = [0] * self.num_boxes
+        self.flags_map = [0] * self.num_boxes
+        self.num_unknown_boxes = self.num_boxes
+        self.num_unknown_mines = self.num_mines
+        self.init_unknown_map()
 
     def modify_surrounding_unknown_map(self, index):
         self.num_unknown_boxes -= 1
@@ -362,7 +383,7 @@ class Logic(Core):
             self.infer_single_box(index)
             if self.cached_steps:
                 self.previous_index = index
-                return self.cached_steps.pop()
+                return self.cached_steps.pop(0)
         random_step = self.make_random_choice()
         return random_step
 
@@ -524,29 +545,10 @@ class Interface(Logic):
         self.console_lines = lines
 
     def re_initialize(self):
-        num_boxes = self.num_boxes
-        num_mines = self.num_mines
-
-        self.mine_indexes = [-1] * num_mines
-        self.base_map = [0] * num_boxes
-        self.view_map = [9] * num_boxes
-        self.unknown_map = [0] * num_boxes
-        self.flags_map = [0] * num_boxes
-
-        self.game_status = 0
-        self.num_steps = 0
-        self.num_random_steps = 0
-        self.previous_index = 0
-        self.time_used = 0.0
-
-        self.num_unknown_boxes = num_boxes
-        self.num_unknown_mines = num_mines
-
+        Logic.re_initialize(self)
         self.cached_steps = []
         self.step_index_list = []
         self.step_mode_list = []
-
-        self.init_unknown_map()
 
     def exploit_step(self, step):
         if self.record_mode != 0:
@@ -727,7 +729,7 @@ class GameStatistics(Interface):
             self.num_recorded_games = -record_mode
         else:
             self.num_recorded_games = 0
-        self.ranking_list = [(self.num_boxes, None)] * self.num_recorded_games
+        self.ranking_list = []
 
         self.key_info_width = 0
         self.value_info_width = 0
@@ -890,24 +892,17 @@ class GameStatistics(Interface):
             self.print_statistics_values(serial_num)
 
     def update_ranking_list(self, game):
-        list_length = self.num_recorded_games
-        if not list_length:
+        if not self.num_recorded_games:
             return
-        num_unknown_boxes = game.num_unknown_boxes
-        insertion_index = list_length - 1
-        while insertion_index > -1 \
-                and num_unknown_boxes < self.ranking_list[insertion_index][0]:
-            insertion_index -= 1
-        insertion_index += 1
-        if insertion_index < list_length:
-            for i in range(list_length - 1, insertion_index, -1):
-                self.ranking_list[i] = self.ranking_list[i - 1]
-            game_recorder = game.get_recorder()
-            self.ranking_list[insertion_index] = (
-                num_unknown_boxes, game_recorder
-            )
-            if num_unknown_boxes == 0:
-                game_recorder.record()
+        game_recorder = game.get_recorder()
+        if game.num_unknown_boxes == 0:
+            game_recorder.record()
+            self.num_recorded_games -= 1
+        else:
+            self.ranking_list.append((game.num_unknown_boxes, game_recorder))
+            self.ranking_list.sort(key=lambda pair: pair[0])
+        if len(self.ranking_list) > self.num_recorded_games:
+            self.ranking_list.pop()
 
     def run(self):
         ConsoleTools.clear_console()
@@ -932,7 +927,7 @@ class GameStatistics(Interface):
             self.update_statistics_data(game, game_index)
             self.update_ranking_list(game)
             game.re_initialize()
-        for pair in self.ranking_list[self.num_games_won:]:
+        for pair in self.ranking_list:
             game_recorder = pair[1]
             game_recorder.record()
 
