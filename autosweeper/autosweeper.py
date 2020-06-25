@@ -62,6 +62,14 @@ class Core(object):
         self.previous_index = 0
         self.time_used = 0.0
 
+    @staticmethod
+    def get_union(list0, list1):
+        return [e for e in list0 if e in list1]
+
+    @staticmethod
+    def get_difference(list0, list1):
+        return [e for e in list0 if e not in list1]
+
     def coord_to_index(self, coord):
         x, y = coord
         return x + self.map_width * y
@@ -104,12 +112,6 @@ class Core(object):
         result = self.get_surrounding_indexes_with_self(index, layer=layer)
         result.pop(0)
         return result
-
-    def get_union(self, list0, list1):
-        return [e for e in list0 if e in list1]
-
-    def get_difference(self, list0, list1):
-        return [e for e in list0 if e not in list1]
 
     def get_common_indexes(self, index0, index1):
         surrounding0 = self.get_surrounding_indexes(index0)
@@ -308,10 +310,11 @@ class Logic(Core):
 
     def re_initialize(self):
         Core.re_initialize(self)
-        self.unknown_map = [0] * self.num_boxes
-        self.flags_map = [0] * self.num_boxes
         self.num_unknown_boxes = self.num_boxes
         self.num_unknown_mines = self.num_mines
+        self.unknown_map = [0] * self.num_boxes
+        self.flags_map = [0] * self.num_boxes
+        self.cached_steps = []
         self.init_unknown_map()
 
     def modify_surrounding_unknown_map(self, index):
@@ -546,7 +549,6 @@ class Interface(Logic):
 
     def re_initialize(self):
         Logic.re_initialize(self)
-        self.cached_steps = []
         self.step_index_list = []
         self.step_mode_list = []
 
@@ -1077,20 +1079,6 @@ class ConsoleTools(object):
         ConsoleCursorInfo(1)
 
     @staticmethod
-    def __show_console_window(n_cmd_show):
-        ctypes.windll.user32.ShowWindow(
-            ctypes.windll.kernel32.GetConsoleWindow(), n_cmd_show
-        )
-
-    @staticmethod
-    def minimize_console_window():
-        ConsoleTools.__show_console_window(6)
-
-    @staticmethod
-    def maximize_console_window():
-        ConsoleTools.__show_console_window(3)
-
-    @staticmethod
     def __set_cmd_text_color(color):
         ConsoleTextColor(color)
 
@@ -1305,7 +1293,6 @@ class MainProcess(object):
 
     def __init__(self):
         self.console = ConsoleTools()
-        self.console.maximize_console_window()
         self.console.set_console_size_to_default()
         self.console.print_copyright_str()
         self.input_parameters()
