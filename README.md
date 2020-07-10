@@ -7,7 +7,7 @@
 | `charsweeper.py`    | python                  | 2018/12/22  | frozen  |
 | `minesweeper_tk.py` | python                  | 2019/2/13   | frozen  |
 | `minesweeper_js`    | javascript & html & css | 2020/4/4    | frozen  |
-| `autosweeper`       | python                  | 2020/6/25   | ongoing |
+| `autosweeper`       | python & Cython & C++   | 2020/7/10   | ongoing |
 
 ## `charsweeper.py`
 
@@ -39,7 +39,21 @@ This is my first javascript project.
 
 You may run `python autosweeper.py` and follow the instructions. Games played can be recorded as json files and saved in `game_savings` folder, and these files can be read and displayed in the future. The `numpy` package is no longer necessary, so using pypy to run `autosweeper.py` is allowed.
 
-Still updating. The algorithm will be updated. C++ version hasn't yet been completed. By the way, this is my first project that contains C++.
+Cython version has been completed. You can run `cy_autosweeper.py`, where the logic part is completed by C++ extensions. By introducing Cython, it would be more possible and easier to improve the algorithm.
+
+Note: `cython_ext/cpp_ext.cpp` can be compiled as well. You should add the command `-fexec-charset=GBK` if you want to compile it yourself.
+
+Pure C++ version hasn't been completed yet. Still updating.
+
+A speed test made on 2020/7/10 (30 * 16, 99 mines, average on 10000 loops, updating every 100 loops, without showing map):
+
+| language                     | avg. time (ms) | avg. time (won) (ms) |
+| :--------------------------: | -------------: | -------------------: |
+| CPython                      |      47.182692 |            49.679944 |
+| PyPy (with jit)              |              ? |                    ? |
+| Cython (with C++ extensions) |       2.286285 |             2.553813 |
+| C++                          |              ? |                    ? |
+| C++ (with multiprocessing)   |              ? |                    ? |
 
 ## License
 

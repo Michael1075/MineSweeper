@@ -1,3 +1,4 @@
+*.exe
 *.pyc
 
 /minesweeper_js/note.txt
@@ -5,7 +6,6 @@
 /autosweeper/game_savings/
 !/autosweeper/game_savings/30-16-99/0.json
 /autosweeper/cpp_test/
+/autosweeper/cython_ext/save/
 /autosweeper/c.py
-/autosweeper/t.py
-/autosweeper/z.py
 /autosweeper/note.txt
