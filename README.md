@@ -50,7 +50,7 @@ A speed test made on 2020/7/10 (30 * 16, 99 mines, average on 10000 loops, updat
 | language                     | avg. time (ms) | avg. time (won) (ms) |
 | :--------------------------: | -------------: | -------------------: |
 | CPython                      |      47.182692 |            49.679944 |
-| PyPy (with jit)              |              ? |                    ? |
+| PyPy (with jit)              |      11.875926 |            13.942982 |
 | Cython (with C++ extensions) |       2.286285 |             2.553813 |
 | C++                          |              ? |                    ? |
 | C++ (with multiprocessing)   |              ? |                    ? |

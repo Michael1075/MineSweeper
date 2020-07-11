@@ -1,8 +1,5 @@
 # distutils: language=c++
 
-#from libcpp.pair cimport pair
-#from libcpp.vector cimport vector
-
 from cpp_ext cimport ConsoleTools
 from cpp_ext cimport Interface
 
