@@ -416,8 +416,6 @@ class Logic(Core):
 
 
 class GameRecorder(object):
-    FOLDER_NAME = "game_savings"
-
     def __init__(self, game):
         self.map_width = game.map_width
         self.map_height = game.map_height
@@ -451,16 +449,11 @@ class GameRecorder(object):
             "step_mode_nums": "".join(map(str, self.step_mode_list)),
         }
 
-    def record(self):
+    def record(self, game_file_index, folder_path):
         json_dict = self.get_json_dict()
-        folder_name = "-".join(map(str, (
-            self.map_width, self.map_height, self.num_mines
-        )))
-        folder_path = os.path.join(GameRecorder.FOLDER_NAME, folder_name)
-        if not os.path.exists(folder_path):
-            os.makedirs(folder_path)
-        filename = str(len(os.listdir(folder_path))) + ".json"
-        file_path = os.path.join(folder_path, filename)
+        file_name = str(game_file_index) + ".json"
+        file_path = os.path.join(folder_path, file_name)
+        assert not os.path.exists(file_path)
         with open(file_path, "w") as output_file:
             json.dump(json_dict, output_file, indent=0)
 
@@ -499,6 +492,7 @@ class Interface(Logic):
     )
     FINISH_MSG = "Finished!"
     INIT_FAILURE_MSG = "Fatal: Failed to form a mine map with so many mines!"
+    FOLDER_NAME = "game_savings"
 
     def __init__(self, map_width, map_height, num_mines,
             display_mode, record_mode, sleep_per_step_if_displayed):
@@ -524,12 +518,16 @@ class Interface(Logic):
 
         self.step_index_list = []
         self.step_mode_list = []
+        self.game_file_index = -1
 
         self.status_info_width = 0
         self.cell_width = 0
         self.console_cols = 0
         self.console_lines = 0
         self.init_interface_params()
+
+        self.folder_path = ""
+        self.init_folder_path()
 
     def init_interface_params(self):
         base_info_cell_num = len(Interface.GAME_BASE_INFO_KEYS)
@@ -546,16 +544,26 @@ class Interface(Logic):
         )
         base_info_width = (self.cell_width + len(Interface.CELL_SEPARATOR)) \
             * base_info_cell_num - len(Interface.CELL_SEPARATOR)
-        cols = max(len(COPYRIGHT_STR), base_info_width)
+        cols = len(COPYRIGHT_STR)
         if self.display_mode == 3:
             lines = 3
         elif self.display_mode == 2:
+            cols = max(cols, base_info_width)
             lines = 6
         else:
-            cols = max(cols, (self.map_width + 2) * 2)
+            cols = max(cols, base_info_width, (self.map_width + 2) * 2)
             lines = self.map_height + 8
         self.console_cols = cols
         self.console_lines = lines
+
+    def init_folder_path(self):
+        main_folder = Interface.FOLDER_NAME
+        if not os.path.exists(main_folder):
+            os.makedirs(main_folder)
+        folder_name = "-".join(map(str, (
+            self.map_width, self.map_height, self.num_mines
+        )))
+        self.folder_path = os.path.join(main_folder, folder_name)
 
     def re_initialize(self):
         Logic.re_initialize(self)
@@ -681,6 +689,32 @@ class Interface(Logic):
             if self.display_map:
                 self.init_display_frame()
 
+    def get_recorder(self):
+        return GameRecorder(self)
+
+    def get_num_of_files(self):
+        folder_path = self.folder_path
+        if not os.path.exists(folder_path):
+            os.makedirs(folder_path)
+        return len(os.listdir(folder_path))
+
+    def record_game_using_recorder(self, game_recorder):
+        if self.game_file_index == -1:
+            self.game_file_index = self.get_num_of_files()
+        else:
+            self.game_file_index += 1
+        game_recorder.record(self.game_file_index, self.folder_path)
+
+    def record_game_data(self, game):
+        game_recorder = game.get_recorder()
+        self.record_game_using_recorder(game_recorder)
+
+    def judge_to_record_game_data(self, game):
+        if self.record_mode == 1 \
+                or self.record_mode == game.game_status == 2 \
+                or self.record_mode == game.game_status == 3:
+            self.record_game_data(game)
+
     def begin_process(self):
         self.prepare_console(self.console_cols, self.console_lines)
 
@@ -700,22 +734,13 @@ class Interface(Logic):
         CONSOLE.print_at_end(1, Interface.INIT_FAILURE_MSG, color=0x0c)
         CONSOLE.ready_to_quit()
 
-    def get_recorder(self):
-        return GameRecorder(self)
-
-    def record_game_data(self):
-        recorder = self.get_recorder()
-        recorder.record()
-
 
 class AutoGame(Interface):
     def run_whole_process(self):
         self.begin_process()
         self.run()
-        if self.record_mode == 1 \
-                or self.record_mode == self.game_status == 2 \
-                or self.record_mode == self.game_status == 3:
-            self.record_game_data()
+        if self.record_mode != 0:
+            self.judge_to_record_game_data(self)
         self.terminate_process()
 
 
@@ -920,7 +945,7 @@ class GameStatistics(Interface):
             return
         game_recorder = game.get_recorder()
         if game.num_unknown_boxes == 0:
-            game_recorder.record()
+            self.record_game_using_recorder(game_recorder)
             self.num_recorded_games -= 1
         else:
             self.ranking_list.append((game.num_unknown_boxes, game_recorder))
@@ -945,11 +970,14 @@ class GameStatistics(Interface):
                 time.sleep(self.sleep_per_game_if_displayed)
             game.run()
             self.update_statistics_data(game, game_index)
-            self.update_ranking_list(game)
+            if self.record_mode > 0:
+                self.judge_to_record_game_data(game)
+            elif self.record_mode < 0:
+                self.update_ranking_list(game)
             game.re_initialize()
         for pair in self.ranking_list:
             game_recorder = pair[1]
-            game_recorder.record()
+            self.record_game_using_recorder(game_recorder)
         self.terminate_process()
 
 
@@ -1014,9 +1042,7 @@ class ChoicesPrompts(object):
     MODE = (
         "Run a single game",
         "Run many times to get statistics data",
-        "Display a recorded game from '{0}' file".format(
-            GameRecorder.FOLDER_NAME
-        )
+        "Display a recorded game from '{0}' file".format(Interface.FOLDER_NAME)
     )
     DISPLAY_MODE_0 = (
         "Display the map and basic information after each step",
@@ -1091,10 +1117,8 @@ class MainProcess(object):
         if split_index == -1:
             return ""
         folder_name = file_id[:split_index]
-        filename = file_id[split_index + 1:] + ".json"
-        file_path = os.path.join(
-            GameRecorder.FOLDER_NAME, folder_name, filename
-        )
+        file_name = file_id[split_index + 1:] + ".json"
+        file_path = os.path.join(Interface.FOLDER_NAME, folder_name, file_name)
         try:
             open(file_path)
         except FileNotFoundError:
