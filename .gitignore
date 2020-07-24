@@ -6,8 +6,6 @@
 /autosweeper/game_savings/
 !/autosweeper/game_savings/30-16-99/0.json
 /autosweeper/cpp_test/
-/autosweeper/cython_ext/
-/autosweeper/cy_autosweeper.py
-/autosweeper/cy_tools.py
+/autosweeper/cython_savings/
 /autosweeper/c.py
 /autosweeper/note.txt

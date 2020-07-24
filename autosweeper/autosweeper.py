@@ -430,11 +430,8 @@ class GameRecorder(object):
         self.step_index_list = game.step_index_list
         self.step_mode_list = game.step_mode_list
 
-    def get_json_dict(self):
-        time_used_str = "{0} ms".format(
-            StringTools.set_decimal(6).format(self.time_used * 1e3)
-        )
-        return {
+    def record(self, game_file_index, folder_path):
+        json_dict = {
             "map_width": str(self.map_width),
             "map_height": str(self.map_height),
             "num_mines": str(self.num_mines),
@@ -443,14 +440,13 @@ class GameRecorder(object):
             "num_flags": str(self.num_flags),
             "num_steps": str(self.num_steps),
             "num_guesses": str(self.num_guesses),
-            "time_used": time_used_str,
+            "time_used": "{0} ms".format(
+                StringTools.set_decimal(6).format(self.time_used * 1e3)
+            ),
             "mine_indexes": " ".join(map(str, self.mine_indexes)),
             "step_indexes": " ".join(map(str, self.step_index_list)),
             "step_mode_nums": "".join(map(str, self.step_mode_list)),
         }
-
-    def record(self, game_file_index, folder_path):
-        json_dict = self.get_json_dict()
         file_name = str(game_file_index) + ".json"
         file_path = os.path.join(folder_path, file_name)
         assert not os.path.exists(file_path)
@@ -460,20 +456,20 @@ class GameRecorder(object):
 
 class Interface(Logic):
     BOX_CHAR_LIST = (
-        ("\u3000", 0x00),  # black        "　"
-        ("\uff11", 0x03),  # dark skyblue "１"
-        ("\uff12", 0x0a),  # green        "２"
-        ("\uff13", 0x0c),  # red          "３"
-        ("\uff14", 0x05),  # dark pink    "４"
-        ("\uff15", 0x04),  # dark red     "５"
-        ("\uff16", 0x0b),  # skyblue      "６"
-        ("\uff17", 0x07),  # dark white   "７"
-        ("\uff18", 0x08),  # dark gray    "８"
-        ("\u2588", 0x7f),  # white        "█"
-        ("\u25cf", 0x7d),  # pink         "●"
-        ("\uff0a", 0x7c),  # red          "＊"
-        ("\u203b", 0x76),  # dark yellow  "※"
-        ("\u2573", 0x08),  # dark gray    "╳"
+        ("\u3000", 0x00),  # black       "　"
+        ("\uff11", 0x03),  # dark blue   "１"
+        ("\uff12", 0x0a),  # green       "２"
+        ("\uff13", 0x0c),  # red         "３"
+        ("\uff14", 0x05),  # dark pink   "４"
+        ("\uff15", 0x04),  # dark red    "５"
+        ("\uff16", 0x0b),  # blue        "６"
+        ("\uff17", 0x07),  # dark white  "７"
+        ("\uff18", 0x08),  # dark gray   "８"
+        ("\u2588", 0x7f),  # white       "█"
+        ("\u25cf", 0x7d),  # pink        "●"
+        ("\uff0a", 0x7c),  # red         "＊"
+        ("\u203b", 0x76),  # dark yellow "※"
+        ("\u2573", 0x08),  # dark gray   "╳"
         # enclosed_box: black
         # revealed_box: dark white
     )
@@ -491,7 +487,7 @@ class Interface(Logic):
         ("\u2517", "\u2501", "\u251b"),  # ┗━┛
     )
     FINISH_MSG = "Finished!"
-    INIT_FAILURE_MSG = "Fatal: Failed to form a mine map with so many mines!"
+    INIT_FAILURE_MSG = "Fatal: Too many mines!"
     FOLDER_NAME = "game_savings"
 
     def __init__(self, map_width, map_height, num_mines,
@@ -678,25 +674,15 @@ class Interface(Logic):
                 (2, line_index), view_map_line_str, color=blank_tuple[1]
             )
 
-    def prepare_console(self, cols, lines):
-        CONSOLE.clear_console()
-        CONSOLE.hide_cursor()
-        CONSOLE.set_console_size(cols, lines)
-        CONSOLE.print_copyright_str()
-        if self.display_mode != 3:
-            self.print_game_base_info_keys()
-            self.print_game_base_info_values()
-            if self.display_map:
-                self.init_display_frame()
-
-    def get_recorder(self):
-        return GameRecorder(self)
-
     def get_num_of_files(self):
         folder_path = self.folder_path
         if not os.path.exists(folder_path):
             os.makedirs(folder_path)
+            return 0
         return len(os.listdir(folder_path))
+
+    def get_recorder(self):
+        return GameRecorder(self)
 
     def record_game_using_recorder(self, game_recorder):
         if self.game_file_index == -1:
@@ -714,6 +700,15 @@ class Interface(Logic):
                 or self.record_mode == game.game_status == 2 \
                 or self.record_mode == game.game_status == 3:
             self.record_game_data(game)
+
+    def prepare_console(self, cols, lines):
+        CONSOLE.ready_to_begin(cols, lines)
+        CONSOLE.print_copyright_str()
+        if self.display_mode != 3:
+            self.print_game_base_info_keys()
+            self.print_game_base_info_values()
+            if self.display_map:
+                self.init_display_frame()
 
     def begin_process(self):
         self.prepare_console(self.console_cols, self.console_lines)
@@ -749,9 +744,9 @@ class GameStatistics(Interface):
     STATISTICS_KEYS = (
         "Specification", "Main progress", "Games won", "Without guesses",
         "Avg. progress", "Avg. flags", "Avg. steps", "Avg. steps (won)",
-        "Avg. guesses", "Avg. time", "Avg. time (won)"
+        "Avg. guesses", "Avg. time", "Avg. time (won)", "Total avg. time"
     )
-    KEY_VAL_SEPARATOR = " "
+    KEY_VAL_SEPARATOR_WIDTH = 1
 
     def __init__(self, map_width, map_height, num_mines, num_games,
             display_mode, record_mode, update_freq,
@@ -766,13 +761,15 @@ class GameStatistics(Interface):
 
         self.num_games_won = 0
         self.num_games_won_without_guesses = 0
-        self.progress_list = [0] * num_games
-        self.num_flags_list = [0] * num_games
-        self.num_steps_list = [0] * num_games
-        self.num_won_games_steps_list = [0] * num_games
-        self.num_random_steps_list = [0] * num_games
-        self.time_list = [0.0] * num_games
-        self.won_games_time_list = [0.0] * num_games
+        self.progress_sum = 0
+        self.num_flags_sum = 0
+        self.num_steps_sum = 0
+        self.num_won_games_steps_sum = 0
+        self.num_random_steps_sum = 0
+        self.time_sum = 0.0
+        self.won_games_time_sum = 0.0
+        self.process_begin_time = 0.0
+        self.game_end_time = 0.0
         if record_mode < 0:
             self.num_recorded_games = -record_mode
         else:
@@ -791,14 +788,14 @@ class GameStatistics(Interface):
         max_time = 1e4
         longest_statistics_values = self.get_statistics_values_template(
             num_games, num_games, num_games, num_boxes, num_mines,
-            num_boxes, num_boxes, num_boxes, max_time, max_time
+            num_boxes, num_boxes, num_boxes, max_time, max_time, max_time
         )
         statistic_info_height = len(GameStatistics.STATISTICS_KEYS)
         assert statistic_info_height == len(longest_statistics_values)
         self.key_info_width = max(map(len, GameStatistics.STATISTICS_KEYS))
         self.value_info_width = max(map(len, longest_statistics_values))
         statistic_info_width = self.key_info_width \
-            + len(GameStatistics.KEY_VAL_SEPARATOR) + self.value_info_width
+            + GameStatistics.KEY_VAL_SEPARATOR_WIDTH + self.value_info_width
         assert len(GameStatistics.STATISTICS_TITLE) <= statistic_info_width
         self.statistic_info_width = statistic_info_width
         self.console_cols = max(self.console_cols, statistic_info_width)
@@ -807,7 +804,7 @@ class GameStatistics(Interface):
     def get_statistics_values_template(self, serial_num, num_games_won,
             num_games_won_without_guesses, avg_progress, avg_num_flags,
             avg_num_steps, avg_won_games_num_steps, avg_num_random_steps,
-            avg_time, avg_won_games_time):
+            avg_time, avg_won_games_time, total_avg_time):
         return (
             "{0} * {1} / {2} ({3})".format(
                 self.map_width, self.map_height, self.num_mines,
@@ -862,26 +859,30 @@ class GameStatistics(Interface):
             "{0} ms".format(
                 StringTools.set_decimal(6).format(avg_won_games_time * 1e3)
             ),
+            "{0} ms".format(
+                StringTools.set_decimal(6).format(total_avg_time * 1e3)
+            ),
         )
 
     def get_statistics_values(self, serial_num):
         num_games_won = self.num_games_won
-        avg_progress = f_div(sum(self.progress_list), serial_num)
-        avg_num_flags = f_div(sum(self.num_flags_list), serial_num)
-        avg_num_steps = f_div(sum(self.num_steps_list), serial_num)
+        avg_progress = f_div(self.progress_sum, serial_num)
+        avg_num_flags = f_div(self.num_flags_sum, serial_num)
+        avg_num_steps = f_div(self.num_steps_sum, serial_num)
         avg_won_games_num_steps = f_div(
-            sum(self.num_won_games_steps_list), num_games_won
+            self.num_won_games_steps_sum, num_games_won
         )
-        avg_num_random_steps = f_div(
-            sum(self.num_random_steps_list), serial_num
+        avg_num_random_steps = f_div(self.num_random_steps_sum, serial_num)
+        avg_time = f_div(self.time_sum, serial_num)
+        avg_won_games_time = f_div(self.won_games_time_sum, num_games_won)
+        total_avg_time = f_div(
+            self.game_end_time - self.process_begin_time, serial_num
         )
-        avg_time = f_div(sum(self.time_list), serial_num)
-        avg_won_games_time = f_div(sum(self.won_games_time_list), num_games_won)
         return self.get_statistics_values_template(
             serial_num, num_games_won,
             self.num_games_won_without_guesses, avg_progress, avg_num_flags,
-            avg_num_steps, avg_won_games_num_steps,
-            avg_num_random_steps, avg_time, avg_won_games_time
+            avg_num_steps, avg_won_games_num_steps, avg_num_random_steps,
+            avg_time, avg_won_games_time, total_avg_time
         )
 
     def get_statistics_begin_line_index(self):
@@ -906,14 +907,14 @@ class GameStatistics(Interface):
                 begin_line_index + line_index,
                 StringTools.set_space(self.key_info_width, -1).format(
                     statistics_key
-                ) + GameStatistics.KEY_VAL_SEPARATOR
+                )
             )
 
     def print_statistics_values(self, serial_num):
         statistics_values = self.get_statistics_values(serial_num)
         begin_line_index = self.get_statistics_begin_line_index()
         begin_col_index = self.key_info_width \
-            + len(GameStatistics.KEY_VAL_SEPARATOR)
+            + GameStatistics.KEY_VAL_SEPARATOR_WIDTH
         for line_index, statistics_val in enumerate(statistics_values):
             CONSOLE.print_at(
                 (begin_col_index, begin_line_index + line_index),
@@ -922,26 +923,23 @@ class GameStatistics(Interface):
                 )
             )
 
-    def update_statistics_data(self, game, game_index):
+    def update_statistics_data(self, game, serial_num):
         if game.game_status == 2:
             self.num_games_won += 1
             if game.num_random_steps == 0:
                 self.num_games_won_without_guesses += 1
-            self.num_won_games_steps_list[game_index] = game.num_steps
-            self.won_games_time_list[game_index] = game.time_used
-        self.progress_list[game_index] \
-            = game.num_boxes - game.num_unknown_boxes
-        self.num_flags_list[game_index] \
-            = game.num_mines - game.num_unknown_mines
-        self.num_steps_list[game_index] = game.num_steps
-        self.num_random_steps_list[game_index] = game.num_random_steps
-        self.time_list[game_index] = game.time_used
-        serial_num = game_index + 1
+            self.num_won_games_steps_sum += game.num_steps
+            self.won_games_time_sum += game.time_used
+        self.progress_sum += game.num_boxes - game.num_unknown_boxes
+        self.num_flags_sum += game.num_mines - game.num_unknown_mines
+        self.num_steps_sum += game.num_steps
+        self.num_random_steps_sum += game.num_random_steps
+        self.time_sum += game.time_used
         if serial_num % self.update_freq == 0 or serial_num == self.num_games:
             self.print_statistics_values(serial_num)
 
     def update_ranking_list(self, game):
-        if not self.num_recorded_games:
+        if self.num_recorded_games == 0:
             return
         game_recorder = game.get_recorder()
         if game.num_unknown_boxes == 0:
@@ -960,20 +958,22 @@ class GameStatistics(Interface):
 
     def run_whole_process(self):
         self.begin_process()
+        self.process_begin_time = time.time()
         game = Interface(
             self.map_width, self.map_height, self.num_mines,
             self.display_mode, self.record_mode,
             self.sleep_per_step_if_displayed
         )
-        for game_index in range(self.num_games):
-            if game_index > 0:
+        for serial_num in range(1, self.num_games + 1):
+            if serial_num > 1:
                 time.sleep(self.sleep_per_game_if_displayed)
             game.run()
-            self.update_statistics_data(game, game_index)
             if self.record_mode > 0:
                 self.judge_to_record_game_data(game)
             elif self.record_mode < 0:
                 self.update_ranking_list(game)
+            self.game_end_time = time.time()
+            self.update_statistics_data(game, serial_num)
             game.re_initialize()
         for pair in self.ranking_list:
             game_recorder = pair[1]
@@ -1081,6 +1081,7 @@ class MainProcess(object):
     def __init__():
         CONSOLE.set_console_size_to_default()
         CONSOLE.print_copyright_str()
+        CONSOLE.put_new_line()
         process = MainProcess.input_parameters()
         process.run_whole_process()
 
@@ -1160,8 +1161,11 @@ class MainProcess(object):
                 int, Prompt.NUM_RECORDED_GAMES, 1, lambda x: 0 < x <= num_games
             )
             record_mode = -num_recorded_games
+        update_freq_default_val = num_games // 100
+        if update_freq_default_val == 0:
+            update_freq_default_val = 1
         update_freq = InputTools.assertion_input(
-            int, Prompt.UPDATE_FREQ, 1, lambda x: x > 0
+            int, Prompt.UPDATE_FREQ, update_freq_default_val, lambda x: x > 0
         )
         if display_mode != 3:
             sleep_per_step = MainProcess.input_sleep_per_step(0.0)
@@ -1193,6 +1197,7 @@ class MainProcess(object):
     @staticmethod
     def input_parameters():
         CONSOLE.print_with_color(Prompt.HINT, color=0x0a)
+        CONSOLE.put_new_line()
         mode = InputTools.prompts_input(Prompt.MODE, 0, ChoicesPrompts.MODE)
         if mode == 0:
             process = MainProcess.handle_0()

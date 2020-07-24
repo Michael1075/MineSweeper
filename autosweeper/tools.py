@@ -10,6 +10,10 @@ __author__ = "Michael W"
 COPYRIGHT_STR = "autosweeper.py - by {0}".format(__author__)
 
 
+def print_(value):
+    print(value, end="", flush=True)
+
+
 def f_div(a, b):
     try:
         return a / b
@@ -57,6 +61,7 @@ class InputTools(object):
     @staticmethod
     def input_again(default_val):
         ConsoleTools.print_with_color(InputTools.WRONG_INPUT_MSG, color=0x0c)
+        ConsoleTools.put_new_line()
         return InputTools.input_with_default_val(
             InputTools.INPUT_AGAIN_PROMPT, default_val
         )
@@ -71,7 +76,8 @@ class InputTools(object):
 
     @staticmethod
     def input_loop(data_cls, base_prompt, prompt, default_val, assert_func):
-        print(base_prompt)
+        print_(base_prompt)
+        ConsoleTools.put_new_line()
         val = InputTools.input_with_default_val(prompt, default_val)
         while not InputTools.check_input(data_cls, val, assert_func):
             val = InputTools.input_again(default_val)
@@ -160,7 +166,7 @@ class ConsoleTextColor(ConsoleCursor):
             0: black
             1: dark blue
             2: dark green
-            3: dark skyblue
+            3: dark blue
             4: dark red
             5: dark pink
             6: dark yellow
@@ -168,7 +174,7 @@ class ConsoleTextColor(ConsoleCursor):
             8: dark gray
             9: blue
             a: green
-            b: skyblue
+            b: blue
             c: red
             d: pink
             e: yellow
@@ -208,9 +214,13 @@ class ConsoleTools(object):
         ConsoleTools.__set_cmd_text_color(0x0f)
 
     @staticmethod
+    def put_new_line():
+        print_("\n")
+
+    @staticmethod
     def print_with_color(value, *, color):
         ConsoleTools.__set_cmd_text_color(color)
-        print(value)
+        print_(value)
         ConsoleTools.__reset_color()
 
     def __set_console_size(self):
@@ -258,6 +268,12 @@ class ConsoleTools(object):
     def print_at_end(self, reversed_line_index, val, *, color=0x0f):
         line_index = self.__lines - reversed_line_index - 1
         self.print_in_line(line_index, val, color=color)
+
+    def ready_to_begin(self, cols, lines):
+        ConsoleTools.clear_console()
+        ConsoleTools.hide_cursor()
+        ConsoleTools.__reset_color()
+        self.set_console_size(cols, lines)
 
     def ready_to_quit(self):
         self.print_at_end(0, "Press any key to quit...")
