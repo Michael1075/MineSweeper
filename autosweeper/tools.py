@@ -242,6 +242,12 @@ class ConsoleTools(object):
         assert x < self.__cols and y < self.__lines
         ConsoleCursorPosition(x, y)
 
+    def move_cursor_to_line(self, line_index):
+        self.__move_cursor_to((0, line_index))
+
+    def move_cursor_to_end_line(self, reversed_line_index):
+        self.move_cursor_to_line(self.__lines - reversed_line_index - 1)
+
     def print_at(self, coord, value, *, color=0x0f):
         assert "\n" not in value
         assert len(value) + coord[0] <= self.__cols
@@ -265,9 +271,10 @@ class ConsoleTools(object):
     def print_copyright_str(self):
         self.print_in_line(0, COPYRIGHT_STR)
 
-    def print_at_end(self, reversed_line_index, val, *, color=0x0f):
-        line_index = self.__lines - reversed_line_index - 1
-        self.print_in_line(line_index, val, color=color)
+    @staticmethod
+    def pause():
+        print_("Press any key to quit...")
+        os.system(" ".join(("pause", ">", os.devnull)))
 
     def ready_to_begin(self, cols, lines):
         ConsoleTools.clear_console()
@@ -276,9 +283,9 @@ class ConsoleTools(object):
         self.set_console_size(cols, lines)
 
     def ready_to_quit(self):
-        self.print_at_end(0, "Press any key to quit...")
         ConsoleTools.show_cursor()
-        os.system(" ".join(("pause", ">", os.devnull)))
+        self.move_cursor_to_end_line(0)
+        ConsoleTools.pause()
         ConsoleTools.clear_console()
         self.set_console_size_to_default()
         sys.exit()

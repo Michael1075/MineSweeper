@@ -15,7 +15,7 @@
 
 There remains some bugs, and usually cannot run completely. **You had better NOT run this file.**
 
-I wrote this project when I was just begining to learn programming. Most of it was written in the summer holiday in 2018. I even didn't follow PEP-8 programming standard. The code cannot be worse both in style and in algorithm---it contains an algorithm with exponent-time complexity, causing jams. This file lives here as a kind of commemoration, never to be updated.
+I wrote this project when I was just beginning to learn programming. Most of it was written in the summer holiday in 2018. I even didn't follow PEP-8 programming standard. The code cannot be worse both in style and in algorithm---it contains an algorithm with exponent-time complexity, causing jams. This file lives here as a kind of commemoration, never to be updated.
 
 ## `minesweeper_tk.py`
 
@@ -45,26 +45,30 @@ You may run one of the following versions. In any version, games played can be r
 $ python autosweeper.py
 $ pypy3 autosweeper.py
 # * You may type in a few arguments according to the prompts.
-# * When making logic calculations, the former runs slower since it runs on CPython interpreter. PyPy provides a bit performance increase with its JIT compiler, so you may choose the latter if it's installed.
+# * When making logic calculations, the former runs slower since it runs on CPython interpreter.
+# * PyPy provides a roughly 3x performance boost with its JIT compiler, it's more recommended.
 # * This is the only version which has a pretty interface where the maps of games can be displayed.
-# * This is the only version where files recorded in `game_savings` folder can be displayed.
+# * This is the only version where files recorded in `game_savings` folder can be loaded and displayed.
 
 # - C++ version -
 # source files: cpp_autosweeper.cpp, cpp_autosweeper.h, tools.h
 # compiled file: cpp_autosweeper.exe
+$ g++ -O3 cpp_autosweeper.cpp -o cpp_autosweeper
 $ cpp_autosweeper.exe
 $ cpp_autosweeper.exe[ 30 16 99[ 1000[ 0[ 100]]]]
 # * This is pure C++ programming, so undoubtedly it comes first in speed.
 # * No prompts. Arguments should be typed in as a command.
+# * Not recommended if you aren't sure what each argument means. Cython version is more recommended.
 
 # - Cython version -
 # source files: cpp_autosweeper.cpp, cpp_autosweeper.h, tools.h
 # link files: cpp_ext.pyd, cython_ext.cpp, setup.py
 # generated file: cython_ext.cpp
 # script file: cy_autosweeper.py
+$ python setup.py build_ext --inplace
 $ python cy_autosweeper.py
-# * Prompts are provided, just like python version, so that you can type in arguments.
-# * The logic part is finished by C++ extension, so it has almost the same speed as C++ version.
+# * Prompts are provided, just like python version, so that you can type in arguments according to them.
+# * The logic part is finished by C++ extension, so it has almost the same performance as C++ version.
 # * The maps of games cannot be displayed.
 ```
 

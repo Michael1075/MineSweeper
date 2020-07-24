@@ -722,11 +722,13 @@ class Interface(Logic):
 
     @staticmethod
     def terminate_process():
-        CONSOLE.print_at_end(1, Interface.FINISH_MSG, color=0x0a)
+        CONSOLE.move_cursor_to_end_line(1)
+        CONSOLE.print_with_color(Interface.FINISH_MSG, color=0x0a)
         CONSOLE.ready_to_quit()
 
     def raise_init_mine_map_error(self):
-        CONSOLE.print_at_end(1, Interface.INIT_FAILURE_MSG, color=0x0c)
+        CONSOLE.move_cursor_to_end_line(1)
+        CONSOLE.print_with_color(Interface.INIT_FAILURE_MSG, color=0x0c)
         CONSOLE.ready_to_quit()
 
 

@@ -5,7 +5,6 @@
 #include <assert.h>
 #include <direct.h>
 #include <fstream>
-#include <io.h>
 #include <vector>
 #include <windows.h>
 
@@ -13,7 +12,7 @@
 using namespace std;
 
 
-static const char *COPYRIGHT_STR("cpp_autosweeper.py - by Michael W");
+static const char *COPYRIGHT_STR("cpp_autosweeper.cpp - by Michael W");
 
 
 double f_div(int a, int b) {
@@ -64,28 +63,72 @@ const double get_current_time() {
 
 
 namespace random {
-	const int randint(int range_maximum) {
-		return rand() % range_maximum;
-	}
+const int randint(int range_maximum) {
+	return rand() % range_maximum;
+}
 
-	const int random_choice(vector<int> vals) {
-		int vals_size(static_cast<int>(vals.size()));
-		int rand_index = randint(vals_size);
-		return vals[rand_index];
-	}
+const int random_choice(vector<int> vals) {
+	int vals_size(static_cast<int>(vals.size()));
+	int rand_index = randint(vals_size);
+	return vals[rand_index];
+}
 
-	const vector<int> random_choices(vector<int> vals, int num_choices) {
-		vector<int> result(num_choices);
-		int vals_size(static_cast<int>(vals.size()));
-		int rand_index, chosen_val;
-		for (int i = 0; i < num_choices; ++i) {
-			rand_index = randint(vals_size - i);
-			chosen_val = vals[rand_index];
-			vals.erase(vals.begin() + rand_index);
-			result[i] = chosen_val;
+const vector<int> random_choices(vector<int> vals, int num_choices) {
+	vector<int> result(num_choices);
+	int vals_size(static_cast<int>(vals.size()));
+	int rand_index, chosen_val;
+	for (int i = 0; i < num_choices; ++i) {
+		rand_index = randint(vals_size - i);
+		chosen_val = vals[rand_index];
+		vals.erase(vals.begin() + rand_index);
+		result[i] = chosen_val;
+	}
+	return result;
+}
+}
+
+
+namespace os {
+const bool exists(const char *path) {
+	return _access(path, 0) == 0;
+}
+
+const int count_num_files(const char *path) {
+	char file_path[64];
+	sprintf(file_path, "%s\\0.json", path);
+	if (!exists(file_path)) {
+		return 0;
+	}
+	sprintf(file_path, "%s\\1.json", path);
+	if (!exists(file_path)) {
+		return 1;
+	}
+	int upper_bound(1);
+	bool current_file_exists(true);
+	while (current_file_exists) {
+		upper_bound *= 2;
+		sprintf(file_path, "%s\\%d.json", path, upper_bound);
+		current_file_exists = exists(file_path);
+	}
+	int lower_bound(upper_bound / 2);
+	int middle((lower_bound + upper_bound) / 2);
+	while (middle != lower_bound) {
+		sprintf(file_path, "%s\\%d.json", path, middle);
+		if (exists(file_path)) {
+			lower_bound = middle;
+		} else {
+			upper_bound = middle;
 		}
-		return result;
+		middle = (lower_bound + upper_bound) / 2;
 	}
+	return middle + 1;
+}
+
+void make_dir(const char *folder_path) {
+	if (!exists(folder_path)) {
+		_mkdir(folder_path);
+	}
+}
 }
 
 
@@ -185,6 +228,15 @@ public:
 		move_cursor_to_line(__lines - reversed_line_index - 1);
 	}
 
+	void pause() {
+		printf("Press any key to quit...");
+#if defined(__linux__)
+		system("pause > /dev/null");
+#elif defined(_WIN32)
+		system("pause > nul");
+#endif
+	}
+
 	void ready_to_begin(int cols, int lines) {
 		clear_console();
 		hide_cursor();
@@ -193,70 +245,14 @@ public:
 	}
 
 	void ready_to_quit() {
-		move_cursor_to_end_line(0);
-		printf("Press any key to quit...");
 		show_cursor();
-		system("pause > nul");
+		move_cursor_to_end_line(0);
+		pause();
 		clear_console();
 		set_console_size_to_default();
 		exit(0);
 	}
 } CONSOLE;
-
-
-struct FileTools {
-public:
-	FileTools() = default;
-
-	virtual ~FileTools() = default;
-
-	const bool exists(const char *path) const {
-		return _access(path, 0) == 0;
-	}
-
-	const int count_num_files(const char *path) const {
-		char file_path[64];
-		sprintf(file_path, "%s\\0.json", path);
-		if (!exists(file_path)) {
-			return 0;
-		}
-		sprintf(file_path, "%s\\1.json", path);
-		if (!exists(file_path)) {
-			return 1;
-		}
-		int upper_bound(1);
-		bool current_file_exists(true);
-		while (current_file_exists) {
-			upper_bound *= 2;
-			sprintf(file_path, "%s\\%d.json", path, upper_bound);
-			current_file_exists = exists(file_path);
-		}
-		int lower_bound(upper_bound / 2);
-		int middle((lower_bound + upper_bound) / 2);
-		while (middle != lower_bound) {
-			sprintf(file_path, "%s\\%d.json", path, middle);
-			if (exists(file_path)) {
-				lower_bound = middle;
-			} else {
-				upper_bound = middle;
-			}
-			middle = (lower_bound + upper_bound) / 2;
-		}
-		return middle + 1;
-	}
-
-	void make_dir(const char *folder_path) const {
-		if (!exists(folder_path)) {
-			_mkdir(folder_path);
-		}
-	}
-
-	ofstream get_output_file_stream(const char *path) const {
-		ofstream output_file(path);
-		assert(output_file.is_open());
-		return output_file;
-	}
-} FILE_TOOLS;
 
 
 #endif

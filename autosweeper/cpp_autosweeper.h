@@ -8,6 +8,8 @@
 
 
 using namespace std;
+
+
 typedef pair<int, int> coord_t;
 typedef pair<int, int> step_t;
 

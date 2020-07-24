@@ -612,7 +612,7 @@ void GameRecorder::write_file() {
 void GameRecorder::record(int game_file_index, const char *path) {
 	char file_path[64];
 	sprintf(file_path, "%s\\%d.json", path, game_file_index);
-	assert(!FILE_TOOLS.exists(file_path));
+	assert(!os::exists(file_path));
 	output_file = fopen(file_path, "w");
 	write_file();
 	fclose(output_file);
@@ -644,18 +644,18 @@ Interface::Interface(int mw, int mh, int nm, int rm):
 Interface::~Interface() = default;
 
 void Interface::init_folder_path() {
-	if (!FILE_TOOLS.exists(FOLDER_NAME)) {
-		FILE_TOOLS.make_dir(FOLDER_NAME);
+	if (!os::exists(FOLDER_NAME)) {
+		os::make_dir(FOLDER_NAME);
 	}
 	sprintf(folder_path, "%s\\%d-%d-%d", FOLDER_NAME, map_width, map_height, num_mines);
 }
 
 const int Interface::get_num_of_files() const {
-	if (!FILE_TOOLS.exists(folder_path)) {
-		FILE_TOOLS.make_dir(folder_path);
+	if (!os::exists(folder_path)) {
+		os::make_dir(folder_path);
 		return 0;
 	}
-	return FILE_TOOLS.count_num_files(folder_path);
+	return os::count_num_files(folder_path);
 }
 
 const GameRecorder Interface::get_recorder(const SingleGame &game) const {
@@ -876,8 +876,9 @@ void cpp_main(int mw, int mh, int nm, int ng, int rm, int uf) {
 
 int main(int argc, char const *argv[]) {
 	if (argc != 1 && (argc < 4 || argc > 7)) {
-		printf("Please type in 0 or 3-6 attributes.");
-		system("pause > nul");
+		printf("Please type in 0 or 3-6 attributes.\n");
+		CONSOLE.pause();
+		printf("\n");
 		return 0;
 	}
 	int mw, mh, nm, ng, rm, uf;
