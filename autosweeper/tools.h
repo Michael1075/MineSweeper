@@ -8,6 +8,10 @@
 #include <vector>
 #include <windows.h>
 
+#if !defined(_WIN32)
+#include <conio.h>
+#endif
+
 
 using namespace std;
 
@@ -229,11 +233,11 @@ public:
 	}
 
 	void pause() {
-		printf("Press any key to quit...");
-#if defined(__linux__)
-		system("pause > /dev/null");
-#elif defined(_WIN32)
+		printf("Press any key to continue...");
+#if defined(_WIN32)
 		system("pause > nul");
+#else
+		getch();
 #endif
 	}
 

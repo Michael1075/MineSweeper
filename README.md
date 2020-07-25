@@ -7,7 +7,7 @@
 | `charsweeper.py`    | python                  | 2018/12/22  | frozen  |
 | `minesweeper_tk.py` | python                  | 2019/2/13   | frozen  |
 | `minesweeper_js`    | javascript & html & css | 2020/4/4    | frozen  |
-| `autosweeper`       | python & Cython & C++   | 2020/7/24   | ongoing |
+| `autosweeper`       | python & C++ & Cython   | 2020/7/25   | ongoing |
 
 ## `charsweeper.py`
 
@@ -39,40 +39,45 @@ This is my first javascript project.
 
 You may run one of the following versions. In any version, games played can be recorded as json files and saved in `game_savings` folder, and these files can be read and displayed in the future.
 
+Still updating.
+
+#### python version
 ```sh
-# - python version -
 # script files: autosweeper.py, tools.py
 $ python autosweeper.py
 $ pypy3 autosweeper.py
-# * You may type in a few arguments according to the prompts.
-# * When making logic calculations, the former runs slower since it runs on CPython interpreter.
-# * PyPy provides a roughly 3x performance boost with its JIT compiler, it's more recommended.
-# * This is the only version which has a pretty interface where the maps of games can be displayed.
-# * This is the only version where files recorded in `game_savings` folder can be loaded and displayed.
+```
 
-# - C++ version -
+- You may type in a few arguments according to the prompts.
+- When making logic calculations, the former runs slower since it runs on CPython interpreter.
+- PyPy provides a roughly 3x performance boost with its JIT compiler, it's more recommended.
+- This is the only version which has a pretty interface where the maps of games can be displayed.
+- This is the only version where files recorded in `game_savings` folder can be loaded and displayed.
+
+#### C++ version
+```sh
 # source files: cpp_autosweeper.cpp, cpp_autosweeper.h, tools.h
 # compiled file: cpp_autosweeper.exe
 $ g++ -O3 cpp_autosweeper.cpp -o cpp_autosweeper
 $ cpp_autosweeper.exe
 $ cpp_autosweeper.exe[ 30 16 99[ 1000[ 0[ 100]]]]
-# * This is pure C++ programming, so undoubtedly it comes first in speed.
-# * No prompts. Arguments should be typed in as a command.
-# * Not recommended if you aren't sure what each argument means. Cython version is more recommended.
+```
+- This is pure C++ programming, so undoubtedly it comes first in speed.
+- No prompts. Arguments should be typed in as a command.
+- Not recommended if you aren't sure what each argument means. Cython version is more recommended.
 
-# - Cython version -
+#### Cython version
+```sh
 # source files: cpp_autosweeper.cpp, cpp_autosweeper.h, tools.h
 # link files: cpp_ext.pyd, cython_ext.cpp, setup.py
 # generated file: cython_ext.cpp
 # script file: cy_autosweeper.py
 $ python setup.py build_ext --inplace
 $ python cy_autosweeper.py
-# * Prompts are provided, just like python version, so that you can type in arguments according to them.
-# * The logic part is finished by C++ extension, so it has almost the same performance as C++ version.
-# * The maps of games cannot be displayed.
 ```
-
-Still updating.
+- Prompts are provided, just like python version, so that you can type in arguments according to them.
+- The logic part is finished by C++ extension, so it has almost the same performance as C++ version.
+- The maps of games cannot be displayed.
 
 <!--
 A speed test made on 2020/7/10 (30 * 16, 99 mines, average on 10000 loops, updating every 100 loops, without showing map or recording games):
