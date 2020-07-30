@@ -925,7 +925,7 @@ class GameStatistics(Interface):
                 )
             )
 
-    def update_statistics_data(self, game, serial_num):
+    def update_statistics_data(self, game):
         if game.game_status == 2:
             self.num_games_won += 1
             if game.num_random_steps == 0:
@@ -937,8 +937,6 @@ class GameStatistics(Interface):
         self.num_steps_sum += game.num_steps
         self.num_random_steps_sum += game.num_random_steps
         self.time_sum += game.time_used
-        if serial_num % self.update_freq == 0 or serial_num == self.num_games:
-            self.print_statistics_values(serial_num)
 
     def update_ranking_list(self, game):
         if self.num_recorded_games == 0:
@@ -958,6 +956,16 @@ class GameStatistics(Interface):
         self.print_statistics_keys()
         self.print_statistics_values(0)
 
+    def run_single_game(self, game):
+        game.run()
+        if self.record_mode > 0:
+            self.judge_to_record_game_data(game)
+        elif self.record_mode < 0:
+            self.update_ranking_list(game)
+        self.game_end_time = time.time()
+        self.update_statistics_data(game)
+        game.re_initialize()
+
     def run_whole_process(self):
         self.begin_process()
         self.process_begin_time = time.time()
@@ -969,14 +977,10 @@ class GameStatistics(Interface):
         for serial_num in range(1, self.num_games + 1):
             if serial_num > 1:
                 time.sleep(self.sleep_per_game_if_displayed)
-            game.run()
-            if self.record_mode > 0:
-                self.judge_to_record_game_data(game)
-            elif self.record_mode < 0:
-                self.update_ranking_list(game)
-            self.game_end_time = time.time()
-            self.update_statistics_data(game, serial_num)
-            game.re_initialize()
+            self.run_single_game(game)
+            if serial_num % self.update_freq == 0 \
+                    or serial_num == self.num_games:
+                self.print_statistics_values(serial_num)
         for pair in self.ranking_list:
             game_recorder = pair[1]
             self.record_game_using_recorder(game_recorder)

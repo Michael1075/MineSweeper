@@ -697,11 +697,6 @@ void Interface::terminate_process() const {
 	CONSOLE.ready_to_quit();
 }
 
-const SingleGame Interface::get_single_game() const {
-	SingleGame result(map_width, map_height, num_mines, record_mode);
-	return result;
-}
-
 
 const char *GameStatistics::STATISTICS_TITLE("- Statistics -");
 const vector<const char*> GameStatistics::STATISTICS_KEYS({
@@ -715,8 +710,10 @@ GameStatistics::GameStatistics() = default;
 
 GameStatistics::GameStatistics(int mw, int mh, int nm, int ng, int rm, int uf):
 	Interface(mw, mh, nm, rm),
+	single_game(SingleGame(mw, mh, nm, rm)),
 	num_games(ng),
 	update_freq(uf),
+	serial_num(),
 	num_games_won(),
 	num_games_won_without_guesses(),
 	progress_sum(),
@@ -767,7 +764,7 @@ void GameStatistics::print_statistics_keys() const {
 	}
 }
 
-void GameStatistics::print_statistics_values(int serial_num) const {
+void GameStatistics::print_statistics_values() const {
 	double avg_progress(f_div(progress_sum, serial_num));
 	double avg_num_flags(f_div(num_flags_sum, serial_num));
 	double avg_num_steps(f_div(num_steps_sum, serial_num));
@@ -798,7 +795,7 @@ void GameStatistics::print_statistics_values(int serial_num) const {
 	}
 }
 
-void GameStatistics::update_statistics_data(const SingleGame &game, int serial_num) {
+void GameStatistics::update_statistics_data(const SingleGame &game) {
 	if (game.game_status == 2) {
 		++num_games_won;
 		if (game.num_random_steps == 0) {
@@ -812,9 +809,6 @@ void GameStatistics::update_statistics_data(const SingleGame &game, int serial_n
 	num_steps_sum += game.num_steps;
 	num_random_steps_sum += game.num_random_steps;
 	time_sum += game.time_used;
-	if (serial_num % update_freq == 0 || serial_num == num_games) {
-		print_statistics_values(serial_num);
-	}
 }
 
 void GameStatistics::update_ranking_list(const SingleGame &game) {
@@ -841,26 +835,37 @@ void GameStatistics::update_ranking_list(const SingleGame &game) {
 void GameStatistics::begin_process() const {
 	Interface::begin_process();
 	print_statistics_keys();
-	print_statistics_values(0);
+	print_statistics_values();
+}
+
+void GameStatistics::run_single_game(SingleGame &game) {
+	game = single_game;
+	game.run();
+	if (record_mode > 0) {
+		judge_to_record_game_data(game);
+	} else if (record_mode < 0) {
+		update_ranking_list(game);
+	}
+	game_end_time = get_current_time();
+	update_statistics_data(game);
+}
+
+void GameStatistics::run_all_games() {
+	SingleGame game;
+	while (serial_num < num_games) {
+		run_single_game(game);
+		++serial_num;
+		if (serial_num % update_freq == 0 || serial_num == num_games) {
+			print_statistics_values();
+		}
+	}
 }
 
 void GameStatistics::run_whole_process() {
 	begin_process();
-    process_begin_time = get_current_time();
 	srand((unsigned)time(NULL));
-	Interface game_process(map_width, map_height, num_mines, record_mode);
-	SingleGame game;
-	for (int serial_num = 1; serial_num <= num_games; ++serial_num) {
-		game = game_process.get_single_game();
-		game.run();
-		if (record_mode > 0) {
-			judge_to_record_game_data(game);
-		} else if (record_mode < 0) {
-			update_ranking_list(game);
-		}
-		game_end_time = get_current_time();
-		update_statistics_data(game, serial_num);
-	}
+    process_begin_time = get_current_time();
+	run_all_games();
 	for (pair<int, GameRecorder> &pair_obj : ranking_list) {
 		record_game_using_recorder(pair_obj.second);
 	}

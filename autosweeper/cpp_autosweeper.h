@@ -197,7 +197,6 @@ public:
 	void prepare_console(int cols, int lines) const;
 	virtual void begin_process() const;
 	void terminate_process() const;
-	const SingleGame get_single_game() const;
 };
 
 
@@ -207,8 +206,10 @@ public:
 	static const vector<const char*> STATISTICS_KEYS;
 	static const int KEY_VAL_SEPARATOR_WIDTH;
 
+	SingleGame single_game;
 	int num_games;
 	int update_freq;
+	int serial_num;
 	int num_games_won;
 	int num_games_won_without_guesses;
 	int progress_sum;
@@ -232,10 +233,12 @@ public:
 
 	void init_statistics_params();
 	void print_statistics_keys() const;
-	void print_statistics_values(int serial_num) const;
-	void update_statistics_data(const SingleGame &game, int serial_num);
+	void print_statistics_values() const;
+	void update_statistics_data(const SingleGame &game);
 	void update_ranking_list(const SingleGame &game);
 	void begin_process() const override;
+	void run_single_game(SingleGame &game);
+	void run_all_games();
 	void run_whole_process();
 };
 

@@ -7,7 +7,7 @@
 | `charsweeper.py`    | python                  | 2018/12/22  | frozen  |
 | `minesweeper_tk.py` | python                  | 2019/2/13   | frozen  |
 | `minesweeper_js`    | javascript & html & css | 2020/4/4    | frozen  |
-| `autosweeper`       | python & C++ & Cython   | 2020/7/25   | ongoing |
+| `autosweeper`       | python & C++ & Cython   | 2020/7/30   | ongoing |
 
 ## `charsweeper.py`
 
@@ -37,9 +37,11 @@ This is my first javascript project.
 
 *Let computer play MineSweeper automatically*
 
+All files in this progect are based on TUI-programming.
+
 You may run one of the following versions. In any version, games played can be recorded as json files and saved in `game_savings` folder, and these files can be read and displayed in the future.
 
-Still updating.
+Still updating. Multithreading module may be added in later versions.
 
 #### python version
 ```sh
